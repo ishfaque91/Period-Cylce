@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>Cycle & Us</title>
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#241A2C" />
+<style>
+  :root{
+    --bg:#241A2C; --panel:#2E2138; --panel-2:#382a44;
+    --rose:#E8607A; --teal:#49A99C; --gold:#D8A94D;
+    --fertile:#1F4440; --period:#5A3444;
+    --text:#F3EAF0; --text-dim:#B7A6C2; --border:#4a3a58;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    background:var(--bg); color:var(--text); min-height:100vh;
+  }
+  #app{max-width:460px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column;}
+  .screen{display:none; flex:1; flex-direction:column; padding:28px 22px;}
+  .screen.active{display:flex;}
+  h1{font-size:1.6rem; margin:0 0 4px; letter-spacing:.3px;}
+  h1 .accent{color:var(--rose);}
+  p.sub{color:var(--text-dim); margin:0 0 28px; font-size:.92rem;}
+  label{font-size:.78rem; color:var(--text-dim); margin-bottom:5px; display:block;}
+  input, select, textarea{
+    width:100%; padding:12px 13px; margin-bottom:14px; border-radius:10px;
+    border:1px solid var(--border); background:var(--panel); color:var(--text);
+    font-size:.95rem; outline:none;
+  }
+  input:focus, select:focus, textarea:focus{border-color:var(--rose);}
+  button{
+    cursor:pointer; border:none; border-radius:10px; padding:13px 16px;
+    font-size:.95rem; font-weight:600; font-family:inherit;
+  }
+  .btn-primary{background:var(--rose); color:#2a1520; width:100%;}
+  .btn-primary:disabled{opacity:.55; cursor:default;}
+  .btn-ghost{background:transparent; color:var(--teal); width:100%; margin-top:10px;}
+  .btn-outline{background:transparent; border:1px solid var(--border); color:var(--text);}
+  .row{display:flex; align-items:center; justify-content:space-between; margin:-4px 0 14px;}
+  .row label{margin:0;}
+  .link{color:var(--teal); background:none; border:none; padding:0; font-size:.85rem; font-weight:600;}
+  .error{color:var(--rose); font-size:.85rem; margin:-6px 0 12px;}
+  .msg{color:var(--teal); font-size:.85rem; margin:-6px 0 12px;}
+  .spacer{flex:1;}
+
+  /* App shell after login */
+  #shell{display:none; flex:1; flex-direction:column;}
+  #shell.active{display:flex;}
+  header.topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 20px; border-bottom:1px solid var(--border);
+  }
+  header.topbar h2{margin:0; font-size:1.1rem;}
+  header.topbar .icons button{background:none; border:none; color:var(--text-dim); font-size:1.2rem; padding:4px 8px;}
+  .tabpanel{display:none; flex:1; padding:18px 20px 90px; overflow-y:auto;}
+  .tabpanel.active{display:block;}
+  nav.bottomnav{
+    position:fixed; bottom:0; left:0; right:0; max-width:460px; margin:0 auto;
+    display:flex; background:var(--panel); border-top:1px solid var(--border);
+  }
+  nav.bottomnav button{
+    flex:1; background:none; border:none; color:var(--text-dim); padding:12px 0;
+    font-size:.72rem; display:flex; flex-direction:column; align-items:center; gap:3px;
+  }
+  nav.bottomnav button.active{color:var(--rose);}
+  nav.bottomnav .icon{font-size:1.3rem;}
+
+  .card{background:var(--panel); border-radius:14px; padding:16px; margin-bottom:14px;}
+  .verify-box{text-align:center; margin:auto;}
+  .verify-box .big{font-size:2.6rem; margin-bottom:10px;}
+
+  /* Calendar */
+  .month-nav{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
+  .month-nav button{background:var(--panel); color:var(--text); padding:6px 12px;}
+  .grid{display:grid; grid-template-columns:repeat(7,1fr); gap:5px;}
+  .day{
+    aspect-ratio:1; display:flex; align-items:center; justify-content:center;
+    border-radius:9px; font-size:.82rem; color:var(--text-dim);
+  }
+  .day.today{border:1.5px solid var(--gold); color:var(--text);}
+  .day.period{background:var(--period); color:var(--text);}
+  .day.fertile{background:var(--fertile); color:var(--text);}
+  .day.ovulation{background:var(--teal); color:#12241F; font-weight:700;}
+  .day.predicted{border:1.5px solid var(--rose); color:var(--rose);}
+  .legend{display:flex; flex-wrap:wrap; gap:12px; margin-top:16px; font-size:.72rem; color:var(--text-dim);}
+  .legend .dot{width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:5px;}
+
+  .chip-row{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;}
+  .chip{
+    padding:8px 14px; border-radius:20px; border:1px solid var(--border);
+    background:var(--panel); color:var(--text-dim); font-size:.82rem; cursor:pointer;
+  }
+  .chip.selected{background:var(--rose); border-color:var(--rose); color:#2a1520;}
+  .switch-row{display:flex; align-items:center; justify-content:space-between; padding:10px 0;}
+  textarea{resize:vertical; min-height:70px;}
+
+  #config-warning{
+    display:none; background:#5A3444; color:#fff; padding:14px 18px; font-size:.85rem;
+    text-align:center;
+  }
+</style>
+</head>
+<body>
+
+<div id="config-warning">
+  ⚠ Firebase isn't connected yet — paste your config into the script near the top of this file (see the comment that says "PASTE YOUR FIREBASE CONFIG HERE").
+</div>
+
+<div id="app">
+
+  <!-- ===================== LOGIN ===================== -->
+  <div class="screen active" id="screen-login">
+    <div class="spacer"></div>
+    <h1>Cycle <span class="accent">&</span> Us</h1>
+    <p class="sub">Log in to your account</p>
+    <label for="login-email">Email</label>
+    <input id="login-email" type="email" autocomplete="email" placeholder="you@example.com" />
+    <label for="login-password">Password</label>
+    <input id="login-password" type="password" autocomplete="current-password" placeholder="••••••••" />
+    <div class="row">
+      <label style="display:flex; align-items:center; gap:6px;">
+        <input type="checkbox" id="login-remember" checked style="width:auto; margin:0;" /> Remember me
+      </label>
+      <button class="link" onclick="showScreen('screen-forgot')">Forgot password?</button>
+    </div>
+    <div class="error" id="login-error" style="display:none;"></div>
+    <button class="btn-primary" id="login-btn" onclick="handleLogin()">Log in</button>
+    <button class="btn-ghost" onclick="showScreen('screen-register')">Don't have an account? Sign up</button>
+    <div class="spacer"></div>
+  </div>
+
+  <!-- ===================== REGISTER ===================== -->
+  <div class="screen" id="screen-register">
+    <p class="sub" style="margin-bottom:6px;">
+      <button class="link" onclick="showScreen('screen-login')">&larr; Back</button>
+    </p>
+    <h1>Create account</h1>
+    <p class="sub">Takes less than a minute</p>
+    <label for="reg-name">Name</label>
+    <input id="reg-name" type="text" autocomplete="name" placeholder="Your name" />
+    <label for="reg-email">Email</label>
+    <input id="reg-email" type="email" autocomplete="email" placeholder="you@example.com" />
+    <label for="reg-password">Password</label>
+    <input id="reg-password" type="password" autocomplete="new-password" placeholder="At least 6 characters" />
+    <div class="error" id="reg-error" style="display:none;"></div>
+    <button class="btn-primary" id="reg-btn" onclick="handleRegister()">Sign up</button>
+  </div>
+
+  <!-- ===================== FORGOT PASSWORD ===================== -->
+  <div class="screen" id="screen-forgot">
+    <p class="sub" style="margin-bottom:6px;">
+      <button class="link" onclick="showScreen('screen-login')">&larr; Back</button>
+    </p>
+    <h1>Reset password</h1>
+    <p class="sub">We'll email you a reset link</p>
+    <label for="forgot-email">Email</label>
+    <input id="forgot-email" type="email" placeholder="you@example.com" />
+    <div class="msg" id="forgot-msg" style="display:none;"></div>
+    <button class="btn-primary" id="forgot-btn" onclick="handleForgotPassword()">Send reset link</button>
+  </div>
+
+  <!-- ===================== APP SHELL (after login) ===================== -->
+  <div id="shell">
+    <header class="topbar">
+      <h2 id="topbar-title">Calendar</h2>
+      <div class="icons">
+        <button title="Log out" onclick="handleLogout()">⎋</button>
+      </div>
+    </header>
+
+    <!-- Verify email gate -->
+    <div class="tabpanel" id="panel-verify">
+      <div class="verify-box">
+        <div class="big">✉️</div>
+        <p>Please verify your email to continue.</p>
+        <button class="btn-outline" onclick="handleResendVerification()">Resend email</button>
+        <button class="btn-primary" style="margin-top:10px;" onclick="handleCheckVerified()">I've verified</button>
+      </div>
+    </div>
+
+    <!-- Calendar tab -->
+    <div class="tabpanel" id="panel-calendar">
+      <button class="btn-primary" onclick="logPeriodToday()">Log period today</button>
+      <div class="card" id="prediction-card" style="display:none; margin-top:14px;"></div>
+      <div class="month-nav" style="margin-top:18px;">
+        <button onclick="shiftMonth(-1)">‹</button>
+        <strong id="month-label"></strong>
+        <button onclick="shiftMonth(1)">›</button>
+      </div>
+      <div class="grid" id="calendar-grid"></div>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--period);"></span>Period</span>
+        <span><span class="dot" style="background:var(--fertile);"></span>Fertile window</span>
+        <span><span class="dot" style="background:var(--teal);"></span>Ovulation</span>
+        <span><span class="dot" style="background:var(--rose);"></span>Predicted period</span>
+      </div>
+    </div>
+
+    <!-- Log entry tab -->
+    <div class="tabpanel" id="panel-log">
+      <label for="log-date">Date</label>
+      <input id="log-date" type="date" onchange="loadLogForDate()" />
+      <label>Flow</label>
+      <div class="chip-row" id="flow-chips">
+        <button class="chip" data-flow="none" onclick="selectFlow('none')">None</button>
+        <button class="chip" data-flow="light" onclick="selectFlow('light')">Light</button>
+        <button class="chip" data-flow="medium" onclick="selectFlow('medium')">Medium</button>
+        <button class="chip" data-flow="heavy" onclick="selectFlow('heavy')">Heavy</button>
+      </div>
+      <label>Symptoms</label>
+      <div class="chip-row" id="symptom-chips"></div>
+      <label for="log-temp">Basal body temp (°C)</label>
+      <input id="log-temp" type="number" step="0.01" placeholder="e.g. 36.5" />
+      <label for="log-mucus">Cervical mucus</label>
+      <select id="log-mucus">
+        <option value="">Not tracked</option>
+        <option value="dry">Dry</option>
+        <option value="sticky">Sticky</option>
+        <option value="creamy">Creamy</option>
+        <option value="egg-white">Egg-white</option>
+      </select>
+      <label for="log-notes">Notes</label>
+      <textarea id="log-notes" placeholder="Anything else you want to remember"></textarea>
+      <button class="btn-primary" onclick="saveLog()">Save entry</button>
+      <div class="msg" id="log-msg" style="display:none;"></div>
+    </div>
+
+    <!-- Profile tab -->
+    <div class="tabpanel" id="panel-profile">
+      <label for="prof-name">Name</label>
+      <input id="prof-name" type="text" />
+      <label for="prof-dob">Date of birth</label>
+      <input id="prof-dob" type="date" />
+      <label for="prof-height">Height (cm)</label>
+      <input id="prof-height" type="number" />
+      <label for="prof-weight">Weight (kg)</label>
+      <input id="prof-weight" type="number" />
+      <div class="switch-row">
+        <label style="margin:0;">Pregnancy mode</label>
+        <input type="checkbox" id="prof-pregnancy" style="width:auto;" />
+      </div>
+      <button class="btn-primary" onclick="saveProfile()">Save changes</button>
+      <div class="msg" id="profile-msg" style="display:none;"></div>
+      <button class="btn-ghost" style="margin-top:24px;" onclick="showImportBox()">Import data from old app</button>
+      <div id="import-box" style="display:none; margin-top:12px;">
+        <label for="import-json">Paste your exported JSON here</label>
+        <textarea id="import-json" placeholder='{"periods": [...], "logs": [...], "lmp": null}'></textarea>
+        <button class="btn-outline" onclick="handleImport()">Import</button>
+        <div class="msg" id="import-msg" style="display:none;"></div>
+      </div>
+    </div>
+
+    <nav class="bottomnav">
+      <button class="active" data-tab="calendar" onclick="showTab('calendar')"><span class="icon">📅</span>Calendar</button>
+      <button data-tab="log" onclick="showTab('log')"><span class="icon">📝</span>Log</button>
+      <button data-tab="profile" onclick="showTab('profile')"><span class="icon">👤</span>Profile</button>
+    </nav>
+  </div>
+
+</div>
+
+<!-- ============================================================ -->
+<!-- Firebase (classic/compat SDK — works when opened directly    -->
+<!-- as a file, no web server or module support required)         -->
+<!-- ============================================================ -->
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+<script>
+
+/* ============================================================
+   PASTE YOUR FIREBASE CONFIG HERE
+   Replace the whole object below with the one Firebase gave you
+   when you registered your web app (Project settings > Your apps).
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyCve0i-huI3eVREK2hzFliFr9ug-wwqwYE",
+  authDomain: "period-cycle-a63e4.firebaseapp.com",
+  projectId: "period-cycle-a63e4",
+  storageBucket: "period-cycle-a63e4.firebasestorage.app",
+  messagingSenderId: "190622271899",
+  appId: "1:190622271899:web:9f3055a407b106d25f793e"
+};
+/* ============================================================ */
+
+if (location.protocol !== 'https:' && location.protocol !== 'http:') {
+  const w = document.getElementById('config-warning');
+  w.textContent = "⚠ This app needs to be opened from a real web address (https://...), not opened directly as a file. Firebase login doesn't work when the app is opened this way. Upload this file to a free host like app.netlify.com/drop and open the link it gives you instead.";
+  w.style.display = 'block';
+  throw new Error('Unsupported protocol for Firebase Auth — stopping app setup.');
+}
+
+if (typeof firebase === 'undefined') {
+  const w = document.getElementById('config-warning');
+  w.textContent = "⚠ Couldn't connect to Firebase. This usually means the page was opened in a preview window without internet access, rather than a real browser. Save this file and open it in Chrome, Safari, or another browser app instead.";
+  w.style.display = 'block';
+  throw new Error('Firebase SDK failed to load — stopping app setup.');
+}
+
+if (firebaseConfig.apiKey.startsWith("PASTE_")) {
+  document.getElementById('config-warning').style.display = 'block';
+}
+
+const app = firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+const SYMPTOMS = ['Cramps','Headache','Bloating','Fatigue','Acne','Backache','Nausea','Tender breasts'];
+document.getElementById('symptom-chips').innerHTML = SYMPTOMS.map(s =>
+  `<button class="chip" data-symptom="${s}" onclick="window.toggleSymptom('${s}')">${s}</button>`
+).join('');
+
+let currentUser = null;
+let periodsCache = [];
+let selectedSymptoms = new Set();
+let selectedFlow = 'none';
+let viewMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let unsubPeriods = null;
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.getElementById('shell').classList.remove('active');
+}
+window.showScreen = showScreen;
+
+function showTab(tab){
+  document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + tab).classList.add('active');
+  document.querySelectorAll('nav.bottomnav button').forEach(b => b.classList.remove('active'));
+  document.querySelector(`nav.bottomnav button[data-tab="${tab}"]`).classList.add('active');
+  document.getElementById('topbar-title').textContent =
+    tab === 'calendar' ? 'Calendar' : tab === 'log' ? 'Log entry' : 'Profile';
+  document.querySelector('nav.bottomnav').style.display = 'flex';
+  if (tab === 'log' && !document.getElementById('log-date').value) {
+    document.getElementById('log-date').value = todayKey();
+    loadLogForDate();
+  }
+  if (tab === 'profile') loadProfile();
+}
+window.showTab = showTab;
+
+function friendlyAuthError(e){
+  const code = e && e.code;
+  switch(code){
+    case 'auth/email-already-in-use': return 'That email already has an account. Try logging in.';
+    case 'auth/invalid-email': return 'That email address looks invalid.';
+    case 'auth/weak-password': return 'Password should be at least 6 characters.';
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential': return 'Email or password is incorrect.';
+    case 'auth/too-many-requests': return 'Too many attempts. Please wait a moment and try again.';
+    default: return 'Something went wrong. Please try again.';
+  }
+}
+
+function todayKey(d){
+  d = d || new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+/* ---------------- Auth actions ---------------- */
+
+window.handleRegister = async function(){
+  const name = document.getElementById('reg-name').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
+  const errEl = document.getElementById('reg-error');
+  errEl.style.display = 'none';
+  if (!name || !email || !password) { errEl.textContent = 'Please fill in every field.'; errEl.style.display='block'; return; }
+  document.getElementById('reg-btn').disabled = true;
+  try {
+    const cred = await auth.createUserWithEmailAndPassword(email, password);
+    await cred.user.updateProfile({ displayName: name });
+    await cred.user.sendEmailVerification();
+    await db.collection('users').doc(cred.user.uid).set({
+      displayName: name, email, cyclePrefs: { avgCycleLen: 28, avgPeriodLen: 5 },
+      pregnancyMode: false, createdAt: new Date().toISOString()
+    });
+  } catch (e) {
+    errEl.textContent = friendlyAuthError(e); errEl.style.display = 'block';
+  } finally {
+    document.getElementById('reg-btn').disabled = false;
+  }
+};
+
+window.handleLogin = async function(){
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const remember = document.getElementById('login-remember').checked;
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+  document.getElementById('login-btn').disabled = true;
+  try {
+    await auth.setPersistence(remember ? firebase.auth.Auth.Persistence.LOCAL : firebase.auth.Auth.Persistence.SESSION);
+    await auth.signInWithEmailAndPassword(email, password);
+  } catch (e) {
+    errEl.textContent = friendlyAuthError(e); errEl.style.display = 'block';
+  } finally {
+    document.getElementById('login-btn').disabled = false;
+  }
+};
+
+window.handleForgotPassword = async function(){
+  const email = document.getElementById('forgot-email').value.trim();
+  const msgEl = document.getElementById('forgot-msg');
+  try {
+    await auth.sendPasswordResetEmail(email);
+    msgEl.textContent = 'Check your email for a reset link.'; msgEl.style.display = 'block';
+  } catch (e) {
+    msgEl.textContent = friendlyAuthError(e); msgEl.style.display = 'block';
+  }
+};
+
+window.handleLogout = async function(){
+  await auth.signOut();
+};
+
+window.handleResendVerification = async function(){
+  if (auth.currentUser) await auth.currentUser.sendEmailVerification();
+};
+
+window.handleCheckVerified = async function(){
+  await auth.currentUser.reload();
+  renderAuthState(auth.currentUser);
+};
+
+/* ---------------- Auth state routing ---------------- */
+
+auth.onAuthStateChanged((user) => {
+  currentUser = user;
+  if (unsubPeriods) { unsubPeriods(); unsubPeriods = null; }
+  if (!user) {
+    showScreen('screen-login');
+    document.querySelector('nav.bottomnav').style.display = 'none';
+    return;
+  }
+  document.getElementById('shell').classList.add('active');
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  renderAuthState(user);
+});
+
+function renderAuthState(user){
+  document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
+  if (!user.emailVerified) {
+    document.getElementById('panel-verify').classList.add('active');
+    document.querySelector('nav.bottomnav').style.display = 'none';
+    document.getElementById('topbar-title').textContent = 'Cycle & Us';
+  } else {
+    document.querySelector('nav.bottomnav').style.display = 'flex';
+    showTab('calendar');
+    watchPeriods();
+  }
+}
+
+/* ---------------- Profile ---------------- */
+
+window.loadProfile = async function(){
+  const snap = await db.collection('users').doc(currentUser.uid).get();
+  const data = snap.exists ? snap.data() : {};
+  document.getElementById('prof-name').value = data.displayName || '';
+  document.getElementById('prof-dob').value = data.dob || '';
+  document.getElementById('prof-height').value = data.heightCm || '';
+  document.getElementById('prof-weight').value = data.weightKg || '';
+  document.getElementById('prof-pregnancy').checked = !!data.pregnancyMode;
+};
+
+window.saveProfile = async function(){
+  await db.collection('users').doc(currentUser.uid).set({
+    displayName: document.getElementById('prof-name').value.trim(),
+    dob: document.getElementById('prof-dob').value || null,
+    heightCm: parseFloat(document.getElementById('prof-height').value) || null,
+    weightKg: parseFloat(document.getElementById('prof-weight').value) || null,
+    pregnancyMode: document.getElementById('prof-pregnancy').checked,
+    updatedAt: new Date().toISOString()
+  }, { merge: true });
+  const msgEl = document.getElementById('profile-msg');
+  msgEl.textContent = 'Profile saved'; msgEl.style.display = 'block';
+  setTimeout(() => msgEl.style.display = 'none', 2500);
+};
+
+window.showImportBox = function(){
+  document.getElementById('import-box').style.display = 'block';
+};
+
+window.handleImport = async function(){
+  const msgEl = document.getElementById('import-msg');
+  try {
+    const data = JSON.parse(document.getElementById('import-json').value);
+    const batch = db.batch();
+    let count = 0;
+    const periodsCol = db.collection('users').doc(currentUser.uid).collection('periods');
+    (data.periods || []).forEach(p => {
+      const ref = periodsCol.doc();
+      batch.set(ref, { start: p.start, end: p.end || null });
+      count++;
+    });
+    const logsCol = db.collection('users').doc(currentUser.uid).collection('logs');
+    (data.logs || []).forEach(l => {
+      const ref = logsCol.doc(l.date);
+      batch.set(ref, {
+        date: l.date, flow: l.flow || 'none', symptoms: l.symptoms || [],
+        basalTemp: l.temp || null, cervicalMucus: l.mucus || null, notes: l.notes || ''
+      }, { merge: true });
+      count++;
+    });
+    if (data.lmp) {
+      batch.set(db.collection('users').doc(currentUser.uid), { lmp: data.lmp, pregnancyMode: true }, { merge: true });
+    }
+    await batch.commit();
+    msgEl.textContent = `Imported ${count} entries.`; msgEl.style.display = 'block';
+  } catch (e) {
+    msgEl.textContent = 'Could not import — check the pasted JSON is valid.'; msgEl.style.display = 'block';
+  }
+};
+
+/* ---------------- Periods + Calendar ---------------- */
+
+function watchPeriods(){
+  const q = db.collection('users').doc(currentUser.uid).collection('periods').orderBy('start', 'desc');
+  unsubPeriods = q.onSnapshot((snap) => {
+    periodsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderCalendar();
+  });
+}
+
+window.logPeriodToday = async function(){
+  const today = todayKey();
+  if (periodsCache.some(p => p.start === today)) return;
+  const periodsCol = db.collection('users').doc(currentUser.uid).collection('periods');
+  const batch = db.batch();
+  if (periodsCache.length > 0) {
+    const last = periodsCache[0];
+    if (!last.end && last.start !== today) {
+      const y = new Date(); y.setDate(y.getDate() - 1);
+      batch.update(periodsCol.doc(last.id), { end: todayKey(y) });
+    }
+  }
+  const newRef = periodsCol.doc();
+  batch.set(newRef, { start: today, end: null });
+  await batch.commit();
+};
+
+function estimateCycle(){
+  if (periodsCache.length === 0) return {};
+  const sorted = [...periodsCache].sort((a,b) => new Date(b.start) - new Date(a.start));
+  const lastStart = new Date(sorted[0].start);
+  let cycleLen = 28;
+  if (sorted.length >= 2) {
+    const diffs = [];
+    for (let i = 0; i < Math.min(sorted.length - 1, 6); i++) {
+      diffs.push((new Date(sorted[i].start) - new Date(sorted[i+1].start)) / 86400000);
+    }
+    if (diffs.length) cycleLen = Math.round(diffs.reduce((a,b)=>a+b,0) / diffs.length);
+  }
+  const nextStart = new Date(lastStart); nextStart.setDate(nextStart.getDate() + cycleLen);
+  const ovulation = new Date(nextStart); ovulation.setDate(ovulation.getDate() - 14);
+  const fertileStart = new Date(ovulation); fertileStart.setDate(fertileStart.getDate() - 5);
+  const fertileEnd = new Date(ovulation); fertileEnd.setDate(fertileEnd.getDate() + 1);
+  return { nextStart, ovulation, fertileStart, fertileEnd };
+}
+
+function inPeriod(dateKey){
+  return periodsCache.some(p => {
+    const start = p.start, end = p.end || p.start;
+    return dateKey >= start && dateKey <= end;
+  });
+}
+
+function shiftMonth(delta){
+  viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + delta, 1);
+  renderCalendar();
+}
+window.shiftMonth = shiftMonth;
+
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function renderCalendar(){
+  const grid = document.getElementById('calendar-grid');
+  const label = document.getElementById('month-label');
+  const predictionCard = document.getElementById('prediction-card');
+  label.textContent = `${MONTH_NAMES[viewMonth.getMonth()]} ${viewMonth.getFullYear()}`;
+
+  const prediction = estimateCycle();
+  if (prediction.nextStart) {
+    predictionCard.style.display = 'block';
+    predictionCard.textContent = `Next period predicted: ${todayKey(prediction.nextStart)}`;
+  } else {
+    predictionCard.style.display = 'none';
+  }
+
+  const firstOfMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
+  const daysInMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0).getDate();
+  const leadingBlanks = firstOfMonth.getDay();
+  const today = todayKey();
+
+  let html = '';
+  for (let i = 0; i < leadingBlanks; i++) html += '<div></div>';
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), day);
+    const key = todayKey(date);
+    let cls = 'day';
+    if (key === today) cls += ' today';
+    if (inPeriod(key)) cls += ' period';
+    else if (prediction.ovulation && key === todayKey(prediction.ovulation)) cls += ' ovulation';
+    else if (prediction.fertileStart && key >= todayKey(prediction.fertileStart) && key <= todayKey(prediction.fertileEnd)) cls += ' fertile';
+    else if (prediction.nextStart && key === todayKey(prediction.nextStart)) cls += ' predicted';
+    html += `<div class="${cls}">${day}</div>`;
+  }
+  grid.innerHTML = html;
+}
+
+/* ---------------- Daily log ---------------- */
+
+window.selectFlow = function(flow){
+  selectedFlow = flow;
+  document.querySelectorAll('#flow-chips .chip').forEach(c =>
+    c.classList.toggle('selected', c.dataset.flow === flow));
+};
+
+window.toggleSymptom = function(s){
+  if (selectedSymptoms.has(s)) selectedSymptoms.delete(s); else selectedSymptoms.add(s);
+  document.querySelectorAll('#symptom-chips .chip').forEach(c =>
+    c.classList.toggle('selected', selectedSymptoms.has(c.dataset.symptom)));
+};
+
+window.loadLogForDate = async function(){
+  const dateKey = document.getElementById('log-date').value;
+  if (!dateKey) return;
+  const snap = await db.collection('users').doc(currentUser.uid).collection('logs').doc(dateKey).get();
+  const data = snap.exists ? snap.data() : {};
+  selectedFlow = data.flow || 'none';
+  selectedSymptoms = new Set(data.symptoms || []);
+  document.getElementById('log-temp').value = data.basalTemp || '';
+  document.getElementById('log-mucus').value = data.cervicalMucus || '';
+  document.getElementById('log-notes').value = data.notes || '';
+  selectFlow(selectedFlow);
+  document.querySelectorAll('#symptom-chips .chip').forEach(c =>
+    c.classList.toggle('selected', selectedSymptoms.has(c.dataset.symptom)));
+};
+
+window.saveLog = async function(){
+  const dateKey = document.getElementById('log-date').value || todayKey();
+  await db.collection('users').doc(currentUser.uid).collection('logs').doc(dateKey).set({
+    date: dateKey, flow: selectedFlow, symptoms: [...selectedSymptoms],
+    basalTemp: parseFloat(document.getElementById('log-temp').value) || null,
+    cervicalMucus: document.getElementById('log-mucus').value || null,
+    notes: document.getElementById('log-notes').value.trim()
+  }, { merge: true });
+  const msgEl = document.getElementById('log-msg');
+  msgEl.textContent = 'Entry saved'; msgEl.style.display = 'block';
+  setTimeout(() => msgEl.style.display = 'none', 2500);
+};
+
+selectFlow('none');
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+  });
+}
+
+</script>
+</body>
+</html>
