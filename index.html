@@ -46,7 +46,6 @@
   .msg{color:var(--teal); font-size:.85rem; margin:-6px 0 12px;}
   .spacer{flex:1;}
 
-  /* App shell after login */
   #shell{display:none; flex:1; flex-direction:column;}
   #shell.active{display:flex;}
   header.topbar{
@@ -72,7 +71,6 @@
   .verify-box{text-align:center; margin:auto;}
   .verify-box .big{font-size:2.6rem; margin-bottom:10px;}
 
-  /* Calendar */
   .month-nav{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
   .month-nav button{background:var(--panel); color:var(--text); padding:6px 12px;}
   .grid{display:grid; grid-template-columns:repeat(7,1fr); gap:5px;}
@@ -111,7 +109,6 @@
 
 <div id="app">
 
-  <!-- ===================== LOGIN ===================== -->
   <div class="screen active" id="screen-login">
     <div class="spacer"></div>
     <h1>Cycle <span class="accent">&</span> Us</h1>
@@ -132,7 +129,6 @@
     <div class="spacer"></div>
   </div>
 
-  <!-- ===================== REGISTER ===================== -->
   <div class="screen" id="screen-register">
     <p class="sub" style="margin-bottom:6px;">
       <button class="link" onclick="showScreen('screen-login')">&larr; Back</button>
@@ -149,7 +145,6 @@
     <button class="btn-primary" id="reg-btn" onclick="handleRegister()">Sign up</button>
   </div>
 
-  <!-- ===================== FORGOT PASSWORD ===================== -->
   <div class="screen" id="screen-forgot">
     <p class="sub" style="margin-bottom:6px;">
       <button class="link" onclick="showScreen('screen-login')">&larr; Back</button>
@@ -162,7 +157,6 @@
     <button class="btn-primary" id="forgot-btn" onclick="handleForgotPassword()">Send reset link</button>
   </div>
 
-  <!-- ===================== APP SHELL (after login) ===================== -->
   <div id="shell">
     <header class="topbar">
       <h2 id="topbar-title">Calendar</h2>
@@ -171,7 +165,6 @@
       </div>
     </header>
 
-    <!-- Verify email gate -->
     <div class="tabpanel" id="panel-verify">
       <div class="verify-box">
         <div class="big">✉️</div>
@@ -181,7 +174,6 @@
       </div>
     </div>
 
-    <!-- Calendar tab -->
     <div class="tabpanel" id="panel-calendar">
       <button class="btn-primary" onclick="logPeriodToday()">Log period today</button>
       <div class="card" id="prediction-card" style="display:none; margin-top:14px;"></div>
@@ -199,7 +191,6 @@
       </div>
     </div>
 
-    <!-- Log entry tab -->
     <div class="tabpanel" id="panel-log">
       <label for="log-date">Date</label>
       <input id="log-date" type="date" onchange="loadLogForDate()" />
@@ -228,7 +219,6 @@
       <div class="msg" id="log-msg" style="display:none;"></div>
     </div>
 
-    <!-- Profile tab -->
     <div class="tabpanel" id="panel-profile">
       <label for="prof-name">Name</label>
       <input id="prof-name" type="text" />
@@ -262,29 +252,19 @@
 
 </div>
 
-<!-- ============================================================ -->
-<!-- Firebase (classic/compat SDK — works when opened directly    -->
-<!-- as a file, no web server or module support required)         -->
-<!-- ============================================================ -->
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <script>
 
-/* ============================================================
-   PASTE YOUR FIREBASE CONFIG HERE
-   Replace the whole object below with the one Firebase gave you
-   when you registered your web app (Project settings > Your apps).
-   ============================================================ */
 const firebaseConfig = {
-  apiKey: "AIzaSyCve0i-huI3eVREK2hzFliFr9ug-wwqwYE",
-  authDomain: "period-cycle-a63e4.firebaseapp.com",
-  projectId: "period-cycle-a63e4",
-  storageBucket: "period-cycle-a63e4.firebasestorage.app",
-  messagingSenderId: "190622271899",
-  appId: "1:190622271899:web:9f3055a407b106d25f793e"
+  apiKey: "AIzaSyB_I-v2U6Q7ZM2EPYyGmkBB2UKFR0tdljg",
+  authDomain: "period-cycle-7ef65.firebaseapp.com",
+  projectId: "period-cycle-7ef65",
+  storageBucket: "period-cycle-7ef65.firebasestorage.app",
+  messagingSenderId: "172669080765",
+  appId: "1:172669080765:web:8dc8342df2179ea253d3d4"
 };
-/* ============================================================ */
 
 if (location.protocol !== 'https:' && location.protocol !== 'http:') {
   const w = document.getElementById('config-warning');
@@ -362,8 +342,6 @@ function todayKey(d){
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
-/* ---------------- Auth actions ---------------- */
-
 window.handleRegister = async function(){
   const name = document.getElementById('reg-name').value.trim();
   const email = document.getElementById('reg-email').value.trim();
@@ -428,8 +406,6 @@ window.handleCheckVerified = async function(){
   renderAuthState(auth.currentUser);
 };
 
-/* ---------------- Auth state routing ---------------- */
-
 auth.onAuthStateChanged((user) => {
   currentUser = user;
   if (unsubPeriods) { unsubPeriods(); unsubPeriods = null; }
@@ -456,213 +432,5 @@ function renderAuthState(user){
   }
 }
 
-/* ---------------- Profile ---------------- */
-
 window.loadProfile = async function(){
-  const snap = await db.collection('users').doc(currentUser.uid).get();
-  const data = snap.exists ? snap.data() : {};
-  document.getElementById('prof-name').value = data.displayName || '';
-  document.getElementById('prof-dob').value = data.dob || '';
-  document.getElementById('prof-height').value = data.heightCm || '';
-  document.getElementById('prof-weight').value = data.weightKg || '';
-  document.getElementById('prof-pregnancy').checked = !!data.pregnancyMode;
-};
-
-window.saveProfile = async function(){
-  await db.collection('users').doc(currentUser.uid).set({
-    displayName: document.getElementById('prof-name').value.trim(),
-    dob: document.getElementById('prof-dob').value || null,
-    heightCm: parseFloat(document.getElementById('prof-height').value) || null,
-    weightKg: parseFloat(document.getElementById('prof-weight').value) || null,
-    pregnancyMode: document.getElementById('prof-pregnancy').checked,
-    updatedAt: new Date().toISOString()
-  }, { merge: true });
-  const msgEl = document.getElementById('profile-msg');
-  msgEl.textContent = 'Profile saved'; msgEl.style.display = 'block';
-  setTimeout(() => msgEl.style.display = 'none', 2500);
-};
-
-window.showImportBox = function(){
-  document.getElementById('import-box').style.display = 'block';
-};
-
-window.handleImport = async function(){
-  const msgEl = document.getElementById('import-msg');
-  try {
-    const data = JSON.parse(document.getElementById('import-json').value);
-    const batch = db.batch();
-    let count = 0;
-    const periodsCol = db.collection('users').doc(currentUser.uid).collection('periods');
-    (data.periods || []).forEach(p => {
-      const ref = periodsCol.doc();
-      batch.set(ref, { start: p.start, end: p.end || null });
-      count++;
-    });
-    const logsCol = db.collection('users').doc(currentUser.uid).collection('logs');
-    (data.logs || []).forEach(l => {
-      const ref = logsCol.doc(l.date);
-      batch.set(ref, {
-        date: l.date, flow: l.flow || 'none', symptoms: l.symptoms || [],
-        basalTemp: l.temp || null, cervicalMucus: l.mucus || null, notes: l.notes || ''
-      }, { merge: true });
-      count++;
-    });
-    if (data.lmp) {
-      batch.set(db.collection('users').doc(currentUser.uid), { lmp: data.lmp, pregnancyMode: true }, { merge: true });
-    }
-    await batch.commit();
-    msgEl.textContent = `Imported ${count} entries.`; msgEl.style.display = 'block';
-  } catch (e) {
-    msgEl.textContent = 'Could not import — check the pasted JSON is valid.'; msgEl.style.display = 'block';
-  }
-};
-
-/* ---------------- Periods + Calendar ---------------- */
-
-function watchPeriods(){
-  const q = db.collection('users').doc(currentUser.uid).collection('periods').orderBy('start', 'desc');
-  unsubPeriods = q.onSnapshot((snap) => {
-    periodsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderCalendar();
-  });
-}
-
-window.logPeriodToday = async function(){
-  const today = todayKey();
-  if (periodsCache.some(p => p.start === today)) return;
-  const periodsCol = db.collection('users').doc(currentUser.uid).collection('periods');
-  const batch = db.batch();
-  if (periodsCache.length > 0) {
-    const last = periodsCache[0];
-    if (!last.end && last.start !== today) {
-      const y = new Date(); y.setDate(y.getDate() - 1);
-      batch.update(periodsCol.doc(last.id), { end: todayKey(y) });
-    }
-  }
-  const newRef = periodsCol.doc();
-  batch.set(newRef, { start: today, end: null });
-  await batch.commit();
-};
-
-function estimateCycle(){
-  if (periodsCache.length === 0) return {};
-  const sorted = [...periodsCache].sort((a,b) => new Date(b.start) - new Date(a.start));
-  const lastStart = new Date(sorted[0].start);
-  let cycleLen = 28;
-  if (sorted.length >= 2) {
-    const diffs = [];
-    for (let i = 0; i < Math.min(sorted.length - 1, 6); i++) {
-      diffs.push((new Date(sorted[i].start) - new Date(sorted[i+1].start)) / 86400000);
-    }
-    if (diffs.length) cycleLen = Math.round(diffs.reduce((a,b)=>a+b,0) / diffs.length);
-  }
-  const nextStart = new Date(lastStart); nextStart.setDate(nextStart.getDate() + cycleLen);
-  const ovulation = new Date(nextStart); ovulation.setDate(ovulation.getDate() - 14);
-  const fertileStart = new Date(ovulation); fertileStart.setDate(fertileStart.getDate() - 5);
-  const fertileEnd = new Date(ovulation); fertileEnd.setDate(fertileEnd.getDate() + 1);
-  return { nextStart, ovulation, fertileStart, fertileEnd };
-}
-
-function inPeriod(dateKey){
-  return periodsCache.some(p => {
-    const start = p.start, end = p.end || p.start;
-    return dateKey >= start && dateKey <= end;
-  });
-}
-
-function shiftMonth(delta){
-  viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + delta, 1);
-  renderCalendar();
-}
-window.shiftMonth = shiftMonth;
-
-const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-
-function renderCalendar(){
-  const grid = document.getElementById('calendar-grid');
-  const label = document.getElementById('month-label');
-  const predictionCard = document.getElementById('prediction-card');
-  label.textContent = `${MONTH_NAMES[viewMonth.getMonth()]} ${viewMonth.getFullYear()}`;
-
-  const prediction = estimateCycle();
-  if (prediction.nextStart) {
-    predictionCard.style.display = 'block';
-    predictionCard.textContent = `Next period predicted: ${todayKey(prediction.nextStart)}`;
-  } else {
-    predictionCard.style.display = 'none';
-  }
-
-  const firstOfMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
-  const daysInMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0).getDate();
-  const leadingBlanks = firstOfMonth.getDay();
-  const today = todayKey();
-
-  let html = '';
-  for (let i = 0; i < leadingBlanks; i++) html += '<div></div>';
-  for (let day = 1; day <= daysInMonth; day++) {
-    const date = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), day);
-    const key = todayKey(date);
-    let cls = 'day';
-    if (key === today) cls += ' today';
-    if (inPeriod(key)) cls += ' period';
-    else if (prediction.ovulation && key === todayKey(prediction.ovulation)) cls += ' ovulation';
-    else if (prediction.fertileStart && key >= todayKey(prediction.fertileStart) && key <= todayKey(prediction.fertileEnd)) cls += ' fertile';
-    else if (prediction.nextStart && key === todayKey(prediction.nextStart)) cls += ' predicted';
-    html += `<div class="${cls}">${day}</div>`;
-  }
-  grid.innerHTML = html;
-}
-
-/* ---------------- Daily log ---------------- */
-
-window.selectFlow = function(flow){
-  selectedFlow = flow;
-  document.querySelectorAll('#flow-chips .chip').forEach(c =>
-    c.classList.toggle('selected', c.dataset.flow === flow));
-};
-
-window.toggleSymptom = function(s){
-  if (selectedSymptoms.has(s)) selectedSymptoms.delete(s); else selectedSymptoms.add(s);
-  document.querySelectorAll('#symptom-chips .chip').forEach(c =>
-    c.classList.toggle('selected', selectedSymptoms.has(c.dataset.symptom)));
-};
-
-window.loadLogForDate = async function(){
-  const dateKey = document.getElementById('log-date').value;
-  if (!dateKey) return;
-  const snap = await db.collection('users').doc(currentUser.uid).collection('logs').doc(dateKey).get();
-  const data = snap.exists ? snap.data() : {};
-  selectedFlow = data.flow || 'none';
-  selectedSymptoms = new Set(data.symptoms || []);
-  document.getElementById('log-temp').value = data.basalTemp || '';
-  document.getElementById('log-mucus').value = data.cervicalMucus || '';
-  document.getElementById('log-notes').value = data.notes || '';
-  selectFlow(selectedFlow);
-  document.querySelectorAll('#symptom-chips .chip').forEach(c =>
-    c.classList.toggle('selected', selectedSymptoms.has(c.dataset.symptom)));
-};
-
-window.saveLog = async function(){
-  const dateKey = document.getElementById('log-date').value || todayKey();
-  await db.collection('users').doc(currentUser.uid).collection('logs').doc(dateKey).set({
-    date: dateKey, flow: selectedFlow, symptoms: [...selectedSymptoms],
-    basalTemp: parseFloat(document.getElementById('log-temp').value) || null,
-    cervicalMucus: document.getElementById('log-mucus').value || null,
-    notes: document.getElementById('log-notes').value.trim()
-  }, { merge: true });
-  const msgEl = document.getElementById('log-msg');
-  msgEl.textContent = 'Entry saved'; msgEl.style.display = 'block';
-  setTimeout(() => msgEl.style.display = 'none', 2500);
-};
-
-selectFlow('none');
-
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('service-worker.js').catch(() => {});
-  });
-}
-
-</script>
-</body>
-</html>
+ 
