@@ -183,8 +183,15 @@
 
     <!-- Calendar tab -->
     <div class="tabpanel" id="panel-calendar">
+      <div class="card" id="dashboard-card">
+        <div id="dashboard-phase" style="font-size:1.15rem; font-weight:700; margin-bottom:10px;">—</div>
+        <div style="display:flex; flex-direction:column; gap:6px; font-size:.88rem; color:var(--text-dim);">
+          <div>Last period started: <span id="dashboard-last" style="color:var(--text); font-weight:600;">—</span></div>
+          <div>Cycle day: <span id="dashboard-day" style="color:var(--text); font-weight:600;">—</span></div>
+          <div>Next period predicted: <span id="dashboard-next" style="color:var(--text); font-weight:600;">—</span></div>
+        </div>
+      </div>
       <button class="btn-primary" onclick="logPeriodToday()">Log period today</button>
-      <div class="card" id="prediction-card" style="display:none; margin-top:14px;"></div>
       <div class="month-nav" style="margin-top:18px;">
         <button onclick="shiftMonth(-1)">‹</button>
         <strong id="month-label"></strong>
@@ -222,6 +229,10 @@
         <option value="creamy">Creamy</option>
         <option value="egg-white">Egg-white</option>
       </select>
+      <div class="switch-row">
+        <label style="margin:0;">Intercourse</label>
+        <input type="checkbox" id="log-intercourse" style="width:auto;" />
+      </div>
       <label for="log-notes">Notes</label>
       <textarea id="log-notes" placeholder="Anything else you want to remember"></textarea>
       <button class="btn-primary" onclick="saveLog()">Save entry</button>
@@ -315,10 +326,12 @@ document.getElementById('symptom-chips').innerHTML = SYMPTOMS.map(s =>
 
 let currentUser = null;
 let periodsCache = [];
+let logsCache = [];
 let selectedSymptoms = new Set();
 let selectedFlow = 'none';
 let viewMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let unsubPeriods = null;
+let unsubLogs = null;
 
 function showScreen(id){
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -433,6 +446,7 @@ window.handleCheckVerified = async function(){
 auth.onAuthStateChanged((user) => {
   currentUser = user;
   if (unsubPeriods) { unsubPeriods(); unsubPeriods = null; }
+  if (unsubLogs) { unsubLogs(); unsubLogs = null; }
   if (!user) {
     showScreen('screen-login');
     document.querySelector('nav.bottomnav').style.display = 'none';
@@ -453,6 +467,7 @@ function renderAuthState(user){
     document.querySelector('nav.bottomnav').style.display = 'flex';
     showTab('calendar');
     watchPeriods();
+    watchLogs();
   }
 }
 
@@ -524,6 +539,15 @@ function watchPeriods(){
   unsubPeriods = q.onSnapshot((snap) => {
     periodsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderCalendar();
+    renderDashboard();
+  });
+}
+
+function watchLogs(){
+  const q = db.collection('users').doc(currentUser.uid).collection('logs').orderBy('date', 'desc');
+  unsubLogs = q.onSnapshot((snap) => {
+    logsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderDashboard();
   });
 }
 
@@ -560,7 +584,7 @@ function estimateCycle(){
   const ovulation = new Date(nextStart); ovulation.setDate(ovulation.getDate() - 14);
   const fertileStart = new Date(ovulation); fertileStart.setDate(fertileStart.getDate() - 5);
   const fertileEnd = new Date(ovulation); fertileEnd.setDate(fertileEnd.getDate() + 1);
-  return { nextStart, ovulation, fertileStart, fertileEnd };
+  return { nextStart, ovulation, fertileStart, fertileEnd, lastStart, cycleLen };
 }
 
 function inPeriod(dateKey){
@@ -568,6 +592,57 @@ function inPeriod(dateKey){
     const start = p.start, end = p.end || p.start;
     return dateKey >= start && dateKey <= end;
   });
+}
+
+/* ---------------- Dashboard: phase, cycle day, pregnancy chance, intercourse count ---------------- */
+
+function renderDashboard(){
+  const phaseEl = document.getElementById('dashboard-phase');
+  const lastEl = document.getElementById('dashboard-last');
+  const dayEl = document.getElementById('dashboard-day');
+  const nextEl = document.getElementById('dashboard-next');
+  if (!phaseEl) return;
+
+  if (periodsCache.length === 0) {
+    phaseEl.textContent = 'No period logged yet';
+    lastEl.textContent = '—';
+    dayEl.textContent = '—';
+    nextEl.textContent = '—';
+    return;
+  }
+
+  const prediction = estimateCycle();
+  const today = todayKey();
+  const sorted = [...periodsCache].sort((a,b) => new Date(b.start) - new Date(a.start));
+  const lastPeriod = sorted[0];
+  const cycleDayNum = Math.floor((new Date(today) - new Date(lastPeriod.start)) / 86400000) + 1;
+
+  let phase, chance;
+  if (inPeriod(today)) {
+    phase = 'Menstrual phase'; chance = 'Very low chance of pregnancy';
+  } else if (prediction.ovulation && today === todayKey(prediction.ovulation)) {
+    phase = 'Ovulation'; chance = 'Highest chance of pregnancy';
+  } else if (prediction.fertileStart && today >= todayKey(prediction.fertileStart) && today <= todayKey(prediction.fertileEnd)) {
+    phase = 'Fertile window'; chance = 'Elevated chance of pregnancy';
+  } else if (prediction.ovulation && today > todayKey(prediction.fertileEnd) && today < todayKey(prediction.nextStart)) {
+    phase = 'Luteal phase'; chance = 'Low chance of pregnancy';
+  } else {
+    phase = 'Follicular phase'; chance = 'Low chance of pregnancy';
+  }
+
+  const intercourseCount = logsCache.filter(l =>
+    l.sexualActivity && l.date >= lastPeriod.start && l.date <= today
+  ).length;
+
+  phaseEl.textContent = phase;
+  lastEl.textContent = `${lastPeriod.start}${lastPeriod.end ? ' – ' + lastPeriod.end : ' (ongoing)'}`;
+  dayEl.textContent = `Day ${cycleDayNum}`;
+  nextEl.textContent = prediction.nextStart ? todayKey(prediction.nextStart) : '—';
+
+  const oldExtra = document.getElementById('dashboard-extra');
+  if (oldExtra) oldExtra.remove();
+  phaseEl.insertAdjacentHTML('afterend',
+    `<div id="dashboard-extra" style="font-size:.85rem; color:var(--text-dim); margin:-4px 0 10px;">${chance} · Intercourse logged this cycle: ${intercourseCount}</div>`);
 }
 
 function shiftMonth(delta){
@@ -581,16 +656,9 @@ const MONTH_NAMES = ['January','February','March','April','May','June','July','A
 function renderCalendar(){
   const grid = document.getElementById('calendar-grid');
   const label = document.getElementById('month-label');
-  const predictionCard = document.getElementById('prediction-card');
   label.textContent = `${MONTH_NAMES[viewMonth.getMonth()]} ${viewMonth.getFullYear()}`;
 
   const prediction = estimateCycle();
-  if (prediction.nextStart) {
-    predictionCard.style.display = 'block';
-    predictionCard.textContent = `Next period predicted: ${todayKey(prediction.nextStart)}`;
-  } else {
-    predictionCard.style.display = 'none';
-  }
 
   const firstOfMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
   const daysInMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0).getDate();
@@ -636,6 +704,7 @@ window.loadLogForDate = async function(){
   selectedSymptoms = new Set(data.symptoms || []);
   document.getElementById('log-temp').value = data.basalTemp || '';
   document.getElementById('log-mucus').value = data.cervicalMucus || '';
+  document.getElementById('log-intercourse').checked = !!data.sexualActivity;
   document.getElementById('log-notes').value = data.notes || '';
   selectFlow(selectedFlow);
   document.querySelectorAll('#symptom-chips .chip').forEach(c =>
@@ -648,6 +717,7 @@ window.saveLog = async function(){
     date: dateKey, flow: selectedFlow, symptoms: [...selectedSymptoms],
     basalTemp: parseFloat(document.getElementById('log-temp').value) || null,
     cervicalMucus: document.getElementById('log-mucus').value || null,
+    sexualActivity: document.getElementById('log-intercourse').checked,
     notes: document.getElementById('log-notes').value.trim()
   }, { merge: true });
   const msgEl = document.getElementById('log-msg');
