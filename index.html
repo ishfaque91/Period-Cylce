@@ -9,8 +9,8 @@
 <style>
   :root{
     --bg:#241A2C; --panel:#2E2138; --panel-2:#382a44;
-    --rose:#E8607A; --teal:#49A99C; --gold:#D8A94D;
-    --fertile:#1F4440; --period:#5A3444;
+    --rose:#E8607A; --teal:#49A99C; --gold:#D8A94D; --lav:#9B8FD9;
+    --fertile:#1F4440; --period:#5A3444; --follicular:#3a3350; --luteal:#4a3350;
     --text:#F3EAF0; --text-dim:#B7A6C2; --border:#4a3a58;
   }
   *{box-sizing:border-box;}
@@ -23,6 +23,7 @@
   .screen.active{display:flex;}
   h1{font-size:1.6rem; margin:0 0 4px; letter-spacing:.3px;}
   h1 .accent{color:var(--rose);}
+  h3{font-size:1rem; margin:18px 0 8px; color:var(--text);}
   p.sub{color:var(--text-dim); margin:0 0 28px; font-size:.92rem;}
   label{font-size:.78rem; color:var(--text-dim); margin-bottom:5px; display:block;}
   input, select, textarea{
@@ -38,7 +39,8 @@
   .btn-primary{background:var(--rose); color:#2a1520; width:100%;}
   .btn-primary:disabled{opacity:.55; cursor:default;}
   .btn-ghost{background:transparent; color:var(--teal); width:100%; margin-top:10px;}
-  .btn-outline{background:transparent; border:1px solid var(--border); color:var(--text);}
+  .btn-outline{background:transparent; border:1px solid var(--border); color:var(--text); width:100%; margin-top:8px;}
+  .btn-danger{background:transparent; border:1px solid var(--rose); color:var(--rose); width:100%; margin-top:8px;}
   .row{display:flex; align-items:center; justify-content:space-between; margin:-4px 0 14px;}
   .row label{margin:0;}
   .link{color:var(--teal); background:none; border:none; padding:0; font-size:.85rem; font-weight:600;}
@@ -46,7 +48,6 @@
   .msg{color:var(--teal); font-size:.85rem; margin:-6px 0 12px;}
   .spacer{flex:1;}
 
-  /* App shell after login */
   #shell{display:none; flex:1; flex-direction:column;}
   #shell.active{display:flex;}
   header.topbar{
@@ -62,15 +63,29 @@
     display:flex; background:var(--panel); border-top:1px solid var(--border);
   }
   nav.bottomnav button{
-    flex:1; background:none; border:none; color:var(--text-dim); padding:12px 0;
-    font-size:.72rem; display:flex; flex-direction:column; align-items:center; gap:3px;
+    flex:1; background:none; border:none; color:var(--text-dim); padding:11px 0;
+    font-size:.68rem; display:flex; flex-direction:column; align-items:center; gap:2px; border-radius:0;
   }
   nav.bottomnav button.active{color:var(--rose);}
-  nav.bottomnav .icon{font-size:1.3rem;}
+  nav.bottomnav .icon{font-size:1.2rem;}
 
   .card{background:var(--panel); border-radius:14px; padding:16px; margin-bottom:14px;}
   .verify-box{text-align:center; margin:auto;}
   .verify-box .big{font-size:2.6rem; margin-bottom:10px;}
+
+  /* Dashboard */
+  .mode-banner{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
+  .mode-banner .mode-label{font-size:.78rem; color:var(--text-dim);}
+  .mode-banner .mode-value{font-weight:700; color:var(--gold);}
+  .mode-banner .change-link{font-size:.8rem; color:var(--teal); background:none; border:none;}
+  .circle-wrap{display:flex; justify-content:center; margin:8px 0 18px;}
+  .card-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .stat-card{background:var(--panel); border-radius:14px; padding:14px;}
+  .stat-card .stat-label{font-size:.72rem; color:var(--text-dim); margin-bottom:4px;}
+  .stat-card .stat-value{font-size:1.25rem; font-weight:700;}
+  .stat-card .stat-sub{font-size:.72rem; color:var(--text-dim); margin-top:2px;}
+  .tip-card{background:linear-gradient(135deg, var(--panel-2), var(--panel)); border-left:3px solid var(--gold); border-radius:10px; padding:14px; margin-top:14px; font-size:.86rem;}
+  .disclaimer{font-size:.7rem; color:var(--text-dim); margin-top:16px; line-height:1.4;}
 
   /* Calendar */
   .month-nav{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
@@ -96,6 +111,11 @@
   .chip.selected{background:var(--rose); border-color:var(--rose); color:#2a1520;}
   .switch-row{display:flex; align-items:center; justify-content:space-between; padding:10px 0;}
   textarea{resize:vertical; min-height:70px;}
+  .segment{display:flex; border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:14px;}
+  .segment button{flex:1; background:var(--panel); color:var(--text-dim); border-radius:0; padding:10px 4px; font-size:.78rem;}
+  .segment button.selected{background:var(--rose); color:#2a1520;}
+  .mini-chart{background:var(--panel); border-radius:14px; padding:12px; margin-bottom:14px;}
+  .mini-chart canvas{max-height:150px;}
 
   #config-warning{
     display:none; background:#5A3444; color:#fff; padding:14px 18px; font-size:.85rem;
@@ -106,7 +126,7 @@
 <body>
 
 <div id="config-warning">
-  ⚠ Firebase isn't connected yet — paste your config into the script near the top of this file (see the comment that says "PASTE YOUR FIREBASE CONFIG HERE").
+  ⚠ Firebase isn't connected yet — check the config at the top of the script.
 </div>
 
 <div id="app">
@@ -162,10 +182,10 @@
     <button class="btn-primary" id="forgot-btn" onclick="handleForgotPassword()">Send reset link</button>
   </div>
 
-  <!-- ===================== APP SHELL (after login) ===================== -->
+  <!-- ===================== APP SHELL ===================== -->
   <div id="shell">
     <header class="topbar">
-      <h2 id="topbar-title">Calendar</h2>
+      <h2 id="topbar-title">Dashboard</h2>
       <div class="icons">
         <button title="Log out" onclick="handleLogout()">⎋</button>
       </div>
@@ -181,16 +201,24 @@
       </div>
     </div>
 
-    <!-- Calendar tab -->
-    <div class="tabpanel" id="panel-calendar">
-      <div class="card" id="dashboard-card">
-        <div id="dashboard-phase" style="font-size:1.15rem; font-weight:700; margin-bottom:10px;">—</div>
-        <div style="display:flex; flex-direction:column; gap:6px; font-size:.88rem; color:var(--text-dim);">
-          <div>Last period started: <span id="dashboard-last" style="color:var(--text); font-weight:600;">—</span></div>
-          <div>Cycle day: <span id="dashboard-day" style="color:var(--text); font-weight:600;">—</span></div>
-          <div>Next period predicted: <span id="dashboard-next" style="color:var(--text); font-weight:600;">—</span></div>
-        </div>
+    <!-- ============ DASHBOARD TAB ============ -->
+    <div class="tabpanel" id="panel-dashboard">
+      <div class="mode-banner">
+        <div><span class="mode-label">Mode: </span><span class="mode-value" id="mode-value">Cycle tracking</span></div>
+        <button class="change-link" onclick="showTab('profile')">Change</button>
       </div>
+
+      <div class="circle-wrap" id="circle-wrap"></div>
+
+      <div id="dashboard-cycle-cards" class="card-grid"></div>
+      <div id="dashboard-pregnancy-cards" class="card-grid" style="display:none;"></div>
+
+      <div class="tip-card" id="dashboard-tip">Log a period to get started.</div>
+      <p class="disclaimer">Predictions and pregnancy-chance estimates are approximations based on your logged data — not a medical diagnosis or a guaranteed method of contraception. Consult a healthcare provider for personal medical advice.</p>
+    </div>
+
+    <!-- ============ CALENDAR TAB ============ -->
+    <div class="tabpanel" id="panel-calendar">
       <button class="btn-primary" onclick="logPeriodToday()">Log period today</button>
       <div class="month-nav" style="margin-top:18px;">
         <button onclick="shiftMonth(-1)">‹</button>
@@ -206,10 +234,11 @@
       </div>
     </div>
 
-    <!-- Log entry tab -->
+    <!-- ============ LOG TAB ============ -->
     <div class="tabpanel" id="panel-log">
       <label for="log-date">Date</label>
       <input id="log-date" type="date" onchange="loadLogForDate()" />
+
       <label>Flow</label>
       <div class="chip-row" id="flow-chips">
         <button class="chip" data-flow="none" onclick="selectFlow('none')">None</button>
@@ -217,10 +246,48 @@
         <button class="chip" data-flow="medium" onclick="selectFlow('medium')">Medium</button>
         <button class="chip" data-flow="heavy" onclick="selectFlow('heavy')">Heavy</button>
       </div>
+
+      <label>Mood</label>
+      <div class="chip-row" id="mood-chips">
+        <button class="chip" data-mood="great" onclick="selectMood('great')">😊 Great</button>
+        <button class="chip" data-mood="okay" onclick="selectMood('okay')">🙂 Okay</button>
+        <button class="chip" data-mood="low" onclick="selectMood('low')">😔 Low</button>
+        <button class="chip" data-mood="irritable" onclick="selectMood('irritable')">😠 Irritable</button>
+        <button class="chip" data-mood="anxious" onclick="selectMood('anxious')">😟 Anxious</button>
+      </div>
+
+      <label for="log-pain">Pain level (0–10)</label>
+      <input id="log-pain" type="range" min="0" max="10" value="0" oninput="document.getElementById('pain-val').textContent = this.value" style="margin-bottom:2px;" />
+      <div style="text-align:right; font-size:.78rem; color:var(--text-dim); margin-bottom:14px;">Level: <span id="pain-val">0</span></div>
+
       <label>Symptoms</label>
       <div class="chip-row" id="symptom-chips"></div>
+
+      <label>Intercourse</label>
+      <div class="segment" id="intercourse-segment">
+        <button data-val="none" onclick="selectIntercourse('none')">None</button>
+        <button data-val="protected" onclick="selectIntercourse('protected')">Protected</button>
+        <button data-val="unprotected" onclick="selectIntercourse('unprotected')">Unprotected</button>
+        <button data-val="withdrawal" onclick="selectIntercourse('withdrawal')">Withdrawal</button>
+      </div>
+
+      <label for="log-ovtest">Ovulation test</label>
+      <select id="log-ovtest">
+        <option value="">Not tracked</option>
+        <option value="negative">Negative</option>
+        <option value="positive">Positive</option>
+      </select>
+
+      <label for="log-pgtest">Pregnancy test</label>
+      <select id="log-pgtest">
+        <option value="">Not tracked</option>
+        <option value="negative">Negative</option>
+        <option value="positive">Positive</option>
+      </select>
+
       <label for="log-temp">Basal body temp (°C)</label>
       <input id="log-temp" type="number" step="0.01" placeholder="e.g. 36.5" />
+
       <label for="log-mucus">Cervical mucus</label>
       <select id="log-mucus">
         <option value="">Not tracked</option>
@@ -229,18 +296,29 @@
         <option value="creamy">Creamy</option>
         <option value="egg-white">Egg-white</option>
       </select>
-      <div class="switch-row">
-        <label style="margin:0;">Intercourse</label>
-        <input type="checkbox" id="log-intercourse" style="width:auto;" />
-      </div>
+
+      <label for="log-weight">Weight (kg)</label>
+      <input id="log-weight" type="number" step="0.1" />
+
+      <label for="log-water">Water intake (ml)</label>
+      <input id="log-water" type="number" step="50" />
+
+      <label for="log-sleep">Sleep (hours)</label>
+      <input id="log-sleep" type="number" step="0.5" />
+
+      <label for="log-exercise">Exercise (minutes)</label>
+      <input id="log-exercise" type="number" step="5" />
+
       <label for="log-notes">Notes</label>
       <textarea id="log-notes" placeholder="Anything else you want to remember"></textarea>
+
       <button class="btn-primary" onclick="saveLog()">Save entry</button>
       <div class="msg" id="log-msg" style="display:none;"></div>
     </div>
 
-    <!-- Profile tab -->
+    <!-- ============ PROFILE TAB ============ -->
     <div class="tabpanel" id="panel-profile">
+      <h3>Personal info</h3>
       <label for="prof-name">Name</label>
       <input id="prof-name" type="text" />
       <label for="prof-dob">Date of birth</label>
@@ -249,23 +327,45 @@
       <input id="prof-height" type="number" />
       <label for="prof-weight">Weight (kg)</label>
       <input id="prof-weight" type="number" />
-      <div class="switch-row">
-        <label style="margin:0;">Pregnancy mode</label>
-        <input type="checkbox" id="prof-pregnancy" style="width:auto;" />
+
+      <h3>Mode</h3>
+      <div class="segment" id="mode-segment">
+        <button data-val="cycle" onclick="selectMode('cycle')">Cycle</button>
+        <button data-val="ttc" onclick="selectMode('ttc')">Trying to conceive</button>
+        <button data-val="avoid" onclick="selectMode('avoid')">Avoid pregnancy</button>
+        <button data-val="pregnant" onclick="selectMode('pregnant')">Pregnant</button>
       </div>
+
+      <div id="pregnancy-fields" style="display:none;">
+        <label for="prof-lmp">First day of last period (for due-date estimate)</label>
+        <input id="prof-lmp" type="date" />
+      </div>
+
       <button class="btn-primary" onclick="saveProfile()">Save changes</button>
       <div class="msg" id="profile-msg" style="display:none;"></div>
-      <button class="btn-ghost" style="margin-top:24px;" onclick="showImportBox()">Import data from old app</button>
+
+      <h3>Trends</h3>
+      <div class="mini-chart"><canvas id="chart-cyclelen"></canvas></div>
+      <div class="mini-chart"><canvas id="chart-mood"></canvas></div>
+
+      <h3>Data</h3>
+      <button class="btn-outline" onclick="showImportBox()">Import data from old app</button>
       <div id="import-box" style="display:none; margin-top:12px;">
         <label for="import-json">Paste your exported JSON here</label>
         <textarea id="import-json" placeholder='{"periods": [...], "logs": [...], "lmp": null}'></textarea>
         <button class="btn-outline" onclick="handleImport()">Import</button>
         <div class="msg" id="import-msg" style="display:none;"></div>
       </div>
+      <button class="btn-outline" onclick="exportData()">Export my data (JSON)</button>
+
+      <h3>Account</h3>
+      <button class="btn-danger" onclick="handleDeleteAccount()">Delete account</button>
+      <div class="msg error" id="account-msg" style="display:none;"></div>
     </div>
 
     <nav class="bottomnav">
-      <button class="active" data-tab="calendar" onclick="showTab('calendar')"><span class="icon">📅</span>Calendar</button>
+      <button class="active" data-tab="dashboard" onclick="showTab('dashboard')"><span class="icon">🏠</span>Dashboard</button>
+      <button data-tab="calendar" onclick="showTab('calendar')"><span class="icon">📅</span>Calendar</button>
       <button data-tab="log" onclick="showTab('log')"><span class="icon">📝</span>Log</button>
       <button data-tab="profile" onclick="showTab('profile')"><span class="icon">👤</span>Profile</button>
     </nav>
@@ -273,19 +373,14 @@
 
 </div>
 
-<!-- ============================================================ -->
-<!-- Firebase (classic/compat SDK — works when opened directly    -->
-<!-- as a file, no web server or module support required)         -->
-<!-- ============================================================ -->
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script>
 
 /* ============================================================
-   PASTE YOUR FIREBASE CONFIG HERE
-   Replace the whole object below with the one Firebase gave you
-   when you registered your web app (Project settings > Your apps).
+   Firebase config — same project as before, unchanged.
    ============================================================ */
 const firebaseConfig = {
   apiKey: "AIzaSyB_I-v2U6Q7ZM2EPYyGmkBB2UKFR0tdljg",
@@ -295,24 +390,18 @@ const firebaseConfig = {
   messagingSenderId: "172669080765",
   appId: "1:172669080765:web:8dc8342df2179ea253d3d4"
 };
-/* ============================================================ */
 
 if (location.protocol !== 'https:' && location.protocol !== 'http:') {
   const w = document.getElementById('config-warning');
-  w.textContent = "⚠ This app needs to be opened from a real web address (https://...), not opened directly as a file. Firebase login doesn't work when the app is opened this way. Upload this file to a free host like app.netlify.com/drop and open the link it gives you instead.";
+  w.textContent = "⚠ This app needs to be opened from a real web address (https://...), not opened directly as a file.";
   w.style.display = 'block';
   throw new Error('Unsupported protocol for Firebase Auth — stopping app setup.');
 }
-
 if (typeof firebase === 'undefined') {
   const w = document.getElementById('config-warning');
-  w.textContent = "⚠ Couldn't connect to Firebase. This usually means the page was opened in a preview window without internet access, rather than a real browser. Save this file and open it in Chrome, Safari, or another browser app instead.";
+  w.textContent = "⚠ Couldn't connect to Firebase. Open this page in a real browser with an internet connection.";
   w.style.display = 'block';
   throw new Error('Firebase SDK failed to load — stopping app setup.');
-}
-
-if (firebaseConfig.apiKey.startsWith("PASTE_")) {
-  document.getElementById('config-warning').style.display = 'block';
 }
 
 const app = firebase.initializeApp(firebaseConfig);
@@ -327,11 +416,29 @@ document.getElementById('symptom-chips').innerHTML = SYMPTOMS.map(s =>
 let currentUser = null;
 let periodsCache = [];
 let logsCache = [];
+let profileCache = {};
 let selectedSymptoms = new Set();
 let selectedFlow = 'none';
+let selectedMood = null;
+let selectedIntercourse = 'none';
+let selectedMode = 'cycle';
 let viewMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let unsubPeriods = null;
 let unsubLogs = null;
+let chartCycleLen = null;
+let chartMood = null;
+
+/* ---------------- Baby size lookup (weeks 4-42) ---------------- */
+const BABY_SIZES = {
+  4:'poppy seed',5:'sesame seed',6:'lentil',7:'blueberry',8:'raspberry',9:'grape',
+  10:'kumquat',11:'fig',12:'lime',13:'lemon',14:'peach',15:'apple',16:'avocado',
+  17:'onion',18:'bell pepper',19:'mango',20:'banana',21:'carrot',22:'papaya',
+  23:'grapefruit',24:'corn cob',25:'cauliflower',26:'lettuce head',27:'cucumber',
+  28:'eggplant',29:'butternut squash',30:'cabbage',31:'coconut',32:'jicama',
+  33:'pineapple',34:'cantaloupe',35:'honeydew melon',36:'romaine lettuce',
+  37:'swiss chard bunch',38:'leek bunch',39:'mini watermelon',40:'small pumpkin',
+  41:'watermelon',42:'watermelon'
+};
 
 function showScreen(id){
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -344,15 +451,17 @@ function showTab(tab){
   document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
   document.getElementById('panel-' + tab).classList.add('active');
   document.querySelectorAll('nav.bottomnav button').forEach(b => b.classList.remove('active'));
-  document.querySelector(`nav.bottomnav button[data-tab="${tab}"]`).classList.add('active');
-  document.getElementById('topbar-title').textContent =
-    tab === 'calendar' ? 'Calendar' : tab === 'log' ? 'Log entry' : 'Profile';
+  const navBtn = document.querySelector(`nav.bottomnav button[data-tab="${tab}"]`);
+  if (navBtn) navBtn.classList.add('active');
+  const titles = { dashboard:'Dashboard', calendar:'Calendar', log:'Log entry', profile:'Profile' };
+  document.getElementById('topbar-title').textContent = titles[tab] || 'Cycle & Us';
   document.querySelector('nav.bottomnav').style.display = 'flex';
   if (tab === 'log' && !document.getElementById('log-date').value) {
     document.getElementById('log-date').value = todayKey();
     loadLogForDate();
   }
-  if (tab === 'profile') loadProfile();
+  if (tab === 'profile') { loadProfile(); renderTrends(); }
+  if (tab === 'dashboard') renderDashboard();
 }
 window.showTab = showTab;
 
@@ -366,6 +475,7 @@ function friendlyAuthError(e){
     case 'auth/wrong-password':
     case 'auth/invalid-credential': return 'Email or password is incorrect.';
     case 'auth/too-many-requests': return 'Too many attempts. Please wait a moment and try again.';
+    case 'auth/requires-recent-login': return 'Please log out and log back in, then try again.';
     default: return 'Something went wrong. Please try again.';
   }
 }
@@ -373,6 +483,12 @@ function friendlyAuthError(e){
 function todayKey(d){
   d = d || new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function addDays(dateKey, n){
+  const d = new Date(dateKey); d.setDate(d.getDate() + n); return d;
+}
+function daysBetween(a, b){
+  return Math.round((new Date(b) - new Date(a)) / 86400000);
 }
 
 /* ---------------- Auth actions ---------------- */
@@ -390,8 +506,9 @@ window.handleRegister = async function(){
     await cred.user.updateProfile({ displayName: name });
     await cred.user.sendEmailVerification();
     await db.collection('users').doc(cred.user.uid).set({
-      displayName: name, email, cyclePrefs: { avgCycleLen: 28, avgPeriodLen: 5 },
-      pregnancyMode: false, createdAt: new Date().toISOString()
+      displayName: name, email, mode: 'cycle',
+      cyclePrefs: { avgCycleLen: 28, avgPeriodLen: 5, lutealPhaseLen: 14 },
+      createdAt: new Date().toISOString()
     });
   } catch (e) {
     errEl.textContent = friendlyAuthError(e); errEl.style.display = 'block';
@@ -428,9 +545,7 @@ window.handleForgotPassword = async function(){
   }
 };
 
-window.handleLogout = async function(){
-  await auth.signOut();
-};
+window.handleLogout = async function(){ await auth.signOut(); };
 
 window.handleResendVerification = async function(){
   if (auth.currentUser) await auth.currentUser.sendEmailVerification();
@@ -439,6 +554,26 @@ window.handleResendVerification = async function(){
 window.handleCheckVerified = async function(){
   await auth.currentUser.reload();
   renderAuthState(auth.currentUser);
+};
+
+window.handleDeleteAccount = async function(){
+  const msgEl = document.getElementById('account-msg');
+  if (!confirm('This permanently deletes your account and all your data. This cannot be undone. Continue?')) return;
+  try {
+    const uid = currentUser.uid;
+    const batchDelete = async (colName) => {
+      const snap = await db.collection('users').doc(uid).collection(colName).get();
+      const batch = db.batch();
+      snap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    };
+    await batchDelete('periods');
+    await batchDelete('logs');
+    await db.collection('users').doc(uid).delete();
+    await currentUser.delete();
+  } catch (e) {
+    msgEl.textContent = friendlyAuthError(e); msgEl.style.display = 'block';
+  }
 };
 
 /* ---------------- Auth state routing ---------------- */
@@ -457,7 +592,7 @@ auth.onAuthStateChanged((user) => {
   renderAuthState(user);
 });
 
-function renderAuthState(user){
+async function renderAuthState(user){
   document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
   if (!user.emailVerified) {
     document.getElementById('panel-verify').classList.add('active');
@@ -465,41 +600,57 @@ function renderAuthState(user){
     document.getElementById('topbar-title').textContent = 'Cycle & Us';
   } else {
     document.querySelector('nav.bottomnav').style.display = 'flex';
-    showTab('calendar');
+    await loadProfile();
+    showTab('dashboard');
     watchPeriods();
     watchLogs();
   }
 }
 
-/* ---------------- Profile ---------------- */
+/* ---------------- Profile / Mode ---------------- */
+
+window.selectMode = function(mode){
+  selectedMode = mode;
+  document.querySelectorAll('#mode-segment button').forEach(b =>
+    b.classList.toggle('selected', b.dataset.val === mode));
+  document.getElementById('pregnancy-fields').style.display = mode === 'pregnant' ? 'block' : 'none';
+};
 
 window.loadProfile = async function(){
   const snap = await db.collection('users').doc(currentUser.uid).get();
   const data = snap.exists ? snap.data() : {};
+  profileCache = data;
   document.getElementById('prof-name').value = data.displayName || '';
   document.getElementById('prof-dob').value = data.dob || '';
   document.getElementById('prof-height').value = data.heightCm || '';
   document.getElementById('prof-weight').value = data.weightKg || '';
-  document.getElementById('prof-pregnancy').checked = !!data.pregnancyMode;
+  document.getElementById('prof-lmp').value = data.lmpDate || '';
+  selectMode(data.mode || 'cycle');
+  const modeNames = { cycle:'Cycle tracking', ttc:'Trying to conceive', avoid:'Avoiding pregnancy', pregnant:'Pregnant' };
+  document.getElementById('mode-value').textContent = modeNames[data.mode || 'cycle'];
 };
 
 window.saveProfile = async function(){
-  await db.collection('users').doc(currentUser.uid).set({
+  const data = {
     displayName: document.getElementById('prof-name').value.trim(),
     dob: document.getElementById('prof-dob').value || null,
     heightCm: parseFloat(document.getElementById('prof-height').value) || null,
     weightKg: parseFloat(document.getElementById('prof-weight').value) || null,
-    pregnancyMode: document.getElementById('prof-pregnancy').checked,
+    mode: selectedMode,
+    lmpDate: selectedMode === 'pregnant' ? (document.getElementById('prof-lmp').value || null) : null,
     updatedAt: new Date().toISOString()
-  }, { merge: true });
+  };
+  await db.collection('users').doc(currentUser.uid).set(data, { merge: true });
+  profileCache = { ...profileCache, ...data };
+  const modeNames = { cycle:'Cycle tracking', ttc:'Trying to conceive', avoid:'Avoiding pregnancy', pregnant:'Pregnant' };
+  document.getElementById('mode-value').textContent = modeNames[selectedMode];
   const msgEl = document.getElementById('profile-msg');
   msgEl.textContent = 'Profile saved'; msgEl.style.display = 'block';
   setTimeout(() => msgEl.style.display = 'none', 2500);
+  renderDashboard();
 };
 
-window.showImportBox = function(){
-  document.getElementById('import-box').style.display = 'block';
-};
+window.showImportBox = function(){ document.getElementById('import-box').style.display = 'block'; };
 
 window.handleImport = async function(){
   const msgEl = document.getElementById('import-msg');
@@ -523,7 +674,7 @@ window.handleImport = async function(){
       count++;
     });
     if (data.lmp) {
-      batch.set(db.collection('users').doc(currentUser.uid), { lmp: data.lmp, pregnancyMode: true }, { merge: true });
+      batch.set(db.collection('users').doc(currentUser.uid), { lmpDate: data.lmp, mode: 'pregnant' }, { merge: true });
     }
     await batch.commit();
     msgEl.textContent = `Imported ${count} entries.`; msgEl.style.display = 'block';
@@ -532,7 +683,17 @@ window.handleImport = async function(){
   }
 };
 
-/* ---------------- Periods + Calendar ---------------- */
+window.exportData = async function(){
+  const data = { profile: profileCache, periods: periodsCache, logs: logsCache };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'cycle-and-us-export.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+/* ---------------- Periods + Logs watchers ---------------- */
 
 function watchPeriods(){
   const q = db.collection('users').doc(currentUser.uid).collection('periods').orderBy('start', 'desc');
@@ -568,23 +729,27 @@ window.logPeriodToday = async function(){
   await batch.commit();
 };
 
+/* ---------------- Cycle math ---------------- */
+
 function estimateCycle(){
   if (periodsCache.length === 0) return {};
   const sorted = [...periodsCache].sort((a,b) => new Date(b.start) - new Date(a.start));
   const lastStart = new Date(sorted[0].start);
+  const periodLen = (profileCache.cyclePrefs && profileCache.cyclePrefs.avgPeriodLen) || 5;
+  const lutealLen = (profileCache.cyclePrefs && profileCache.cyclePrefs.lutealPhaseLen) || 14;
   let cycleLen = 28;
+  const cycleLens = [];
   if (sorted.length >= 2) {
-    const diffs = [];
     for (let i = 0; i < Math.min(sorted.length - 1, 6); i++) {
-      diffs.push((new Date(sorted[i].start) - new Date(sorted[i+1].start)) / 86400000);
+      cycleLens.push(daysBetween(sorted[i+1].start, sorted[i].start));
     }
-    if (diffs.length) cycleLen = Math.round(diffs.reduce((a,b)=>a+b,0) / diffs.length);
+    if (cycleLens.length) cycleLen = Math.round(cycleLens.reduce((a,b)=>a+b,0) / cycleLens.length);
   }
   const nextStart = new Date(lastStart); nextStart.setDate(nextStart.getDate() + cycleLen);
-  const ovulation = new Date(nextStart); ovulation.setDate(ovulation.getDate() - 14);
+  const ovulation = new Date(nextStart); ovulation.setDate(ovulation.getDate() - lutealLen);
   const fertileStart = new Date(ovulation); fertileStart.setDate(fertileStart.getDate() - 5);
   const fertileEnd = new Date(ovulation); fertileEnd.setDate(fertileEnd.getDate() + 1);
-  return { nextStart, ovulation, fertileStart, fertileEnd, lastStart, cycleLen };
+  return { nextStart, ovulation, fertileStart, fertileEnd, lastStart, cycleLen, periodLen, cycleLens };
 }
 
 function inPeriod(dateKey){
@@ -594,20 +759,135 @@ function inPeriod(dateKey){
   });
 }
 
-/* ---------------- Dashboard: phase, cycle day, pregnancy chance, intercourse count ---------------- */
+/* ---------------- Circular cycle visualization ---------------- */
+
+function polarPoint(cx, cy, r, angleDeg){
+  const rad = (angleDeg - 90) * Math.PI / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+function arcPath(cx, cy, r, startAngle, endAngle){
+  const start = polarPoint(cx, cy, r, endAngle);
+  const end = polarPoint(cx, cy, r, startAngle);
+  const largeArc = endAngle - startAngle <= 180 ? 0 : 1;
+  return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 0 ${end.x} ${end.y}`;
+}
+
+function renderCircle(){
+  const wrap = document.getElementById('circle-wrap');
+  const size = 220, cx = size/2, cy = size/2, r = 88;
+  const prediction = estimateCycle();
+
+  if (!prediction.cycleLen) {
+    wrap.innerHTML = `<svg width="${size}" height="${size}"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#382a44" stroke-width="16"/></svg>`;
+    return;
+  }
+
+  const cycleLen = prediction.cycleLen;
+  const periodLen = prediction.periodLen;
+  const ovDay = cycleLen - ((profileCache.cyclePrefs && profileCache.cyclePrefs.lutealPhaseLen) || 14);
+  const fertileStartDay = Math.max(0, ovDay - 5);
+  const fertileEndDay = Math.min(cycleLen, ovDay + 1);
+
+  const dayToAngle = (day) => (day / cycleLen) * 360;
+
+  const segments = [
+    { from: 0, to: periodLen, color: 'var(--period)' },
+    { from: periodLen, to: fertileStartDay, color: 'var(--follicular)' },
+    { from: fertileStartDay, to: fertileEndDay, color: 'var(--fertile)' },
+    { from: fertileEndDay, to: cycleLen, color: 'var(--luteal)' }
+  ];
+
+  let paths = segments.filter(s => s.to > s.from).map(s =>
+    `<path d="${arcPath(cx, cy, r, dayToAngle(s.from), dayToAngle(s.to))}" fill="none" stroke="${s.color}" stroke-width="16" stroke-linecap="butt"/>`
+  ).join('');
+
+  const today = todayKey();
+  const cycleDayNum = Math.max(0, Math.min(cycleLen, daysBetween(todayKey(prediction.lastStart), today)));
+  const markerAngle = dayToAngle(cycleDayNum);
+  const markerPos = polarPoint(cx, cy, r, markerAngle);
+  const ovPos = polarPoint(cx, cy, r, dayToAngle(ovDay));
+
+  const centerLabel = prediction.nextStart
+    ? `<text x="${cx}" y="${cy-6}" text-anchor="middle" font-size="26" font-weight="700" fill="#F3EAF0">Day ${cycleDayNum+1}</text>
+       <text x="${cx}" y="${cy+18}" text-anchor="middle" font-size="11" fill="#B7A6C2">of ~${cycleLen}-day cycle</text>`
+    : '';
+
+  wrap.innerHTML = `
+    <svg width="${size}" height="${size}">
+      ${paths}
+      <circle cx="${ovPos.x}" cy="${ovPos.y}" r="4" fill="#49A99C" />
+      <circle cx="${markerPos.x}" cy="${markerPos.y}" r="7" fill="#D8A94D" stroke="#241A2C" stroke-width="2" />
+      ${centerLabel}
+    </svg>`;
+}
+
+/* ---------------- Dashboard ---------------- */
+
+function regularityLabel(cycleLens){
+  if (!cycleLens || cycleLens.length < 2) return 'Not enough data yet';
+  const avg = cycleLens.reduce((a,b)=>a+b,0) / cycleLens.length;
+  const variance = cycleLens.reduce((a,b)=>a + Math.pow(b-avg,2), 0) / cycleLens.length;
+  const stdev = Math.sqrt(variance);
+  if (stdev <= 2) return 'Very regular';
+  if (stdev <= 5) return 'Fairly regular';
+  return 'Irregular';
+}
+
+function pickTip(phase, mode, recentSymptoms){
+  if (mode === 'pregnant') return "Remember to stay hydrated and keep up with your prenatal appointments.";
+  if (phase === 'Menstrual phase') return "Stay hydrated and rest if you need it — light movement can help with cramps.";
+  if (phase === 'Fertile window') return mode === 'ttc'
+    ? "You're in your fertile window — this is typically when conception is most likely."
+    : "You're in your fertile window. If avoiding pregnancy, extra caution is worth considering.";
+  if (phase === 'Ovulation') return "Ovulation day — your fertility signs (like cervical mucus) may be most noticeable now.";
+  if (recentSymptoms && recentSymptoms.length) return `You've logged ${recentSymptoms[0]} recently — tracking patterns like this can help you and your doctor spot trends.`;
+  return "Log your symptoms and mood regularly for more accurate predictions over time.";
+}
 
 function renderDashboard(){
-  const phaseEl = document.getElementById('dashboard-phase');
-  const lastEl = document.getElementById('dashboard-last');
-  const dayEl = document.getElementById('dashboard-day');
-  const nextEl = document.getElementById('dashboard-next');
-  if (!phaseEl) return;
+  renderCircle();
+  const cycleCardsEl = document.getElementById('dashboard-cycle-cards');
+  const pregCardsEl = document.getElementById('dashboard-pregnancy-cards');
+  const tipEl = document.getElementById('dashboard-tip');
+  if (!cycleCardsEl) return;
+
+  const mode = profileCache.mode || 'cycle';
+
+  if (mode === 'pregnant') {
+    cycleCardsEl.style.display = 'none';
+    pregCardsEl.style.display = 'grid';
+    const lmp = profileCache.lmpDate;
+    if (!lmp) {
+      pregCardsEl.innerHTML = `<div class="stat-card" style="grid-column:1/3;">Add the first day of your last period in Profile to see pregnancy tracking.</div>`;
+      tipEl.textContent = pickTip(null, 'pregnant');
+      return;
+    }
+    const today = todayKey();
+    const daysPregnant = Math.max(0, daysBetween(lmp, today));
+    const weeksPregnant = Math.floor(daysPregnant / 7);
+    const dayOfWeek = daysPregnant % 7;
+    const dueDate = todayKey(addDays(lmp, 280));
+    const trimester = weeksPregnant < 13 ? 'First' : weeksPregnant < 27 ? 'Second' : 'Third';
+    const babySize = BABY_SIZES[Math.min(42, Math.max(4, weeksPregnant))] || 'growing steadily';
+    const daysToDue = daysBetween(today, dueDate);
+
+    pregCardsEl.innerHTML = `
+      <div class="stat-card"><div class="stat-label">Weeks pregnant</div><div class="stat-value">${weeksPregnant}w ${dayOfWeek}d</div></div>
+      <div class="stat-card"><div class="stat-label">Trimester</div><div class="stat-value">${trimester}</div></div>
+      <div class="stat-card"><div class="stat-label">Estimated due date</div><div class="stat-value" style="font-size:1rem;">${dueDate}</div></div>
+      <div class="stat-card"><div class="stat-label">Days until due date</div><div class="stat-value">${daysToDue}</div></div>
+      <div class="stat-card" style="grid-column:1/3;"><div class="stat-label">Baby is about the size of a</div><div class="stat-value" style="font-size:1.1rem;">${babySize}</div></div>
+    `;
+    tipEl.textContent = pickTip(null, 'pregnant');
+    return;
+  }
+
+  cycleCardsEl.style.display = 'grid';
+  pregCardsEl.style.display = 'none';
 
   if (periodsCache.length === 0) {
-    phaseEl.textContent = 'No period logged yet';
-    lastEl.textContent = '—';
-    dayEl.textContent = '—';
-    nextEl.textContent = '—';
+    cycleCardsEl.innerHTML = `<div class="stat-card" style="grid-column:1/3;">Log your first period on the Calendar tab to unlock predictions.</div>`;
+    tipEl.textContent = "Log a period to get started.";
     return;
   }
 
@@ -615,35 +895,40 @@ function renderDashboard(){
   const today = todayKey();
   const sorted = [...periodsCache].sort((a,b) => new Date(b.start) - new Date(a.start));
   const lastPeriod = sorted[0];
-  const cycleDayNum = Math.floor((new Date(today) - new Date(lastPeriod.start)) / 86400000) + 1;
+  const cycleDayNum = daysBetween(lastPeriod.start, today) + 1;
+  const periodCountdown = prediction.nextStart ? daysBetween(today, todayKey(prediction.nextStart)) : null;
+  const ovulationCountdown = prediction.ovulation ? daysBetween(today, todayKey(prediction.ovulation)) : null;
 
-  let phase, chance;
-  if (inPeriod(today)) {
-    phase = 'Menstrual phase'; chance = 'Very low chance of pregnancy';
-  } else if (prediction.ovulation && today === todayKey(prediction.ovulation)) {
-    phase = 'Ovulation'; chance = 'Highest chance of pregnancy';
-  } else if (prediction.fertileStart && today >= todayKey(prediction.fertileStart) && today <= todayKey(prediction.fertileEnd)) {
-    phase = 'Fertile window'; chance = 'Elevated chance of pregnancy';
-  } else if (prediction.ovulation && today > todayKey(prediction.fertileEnd) && today < todayKey(prediction.nextStart)) {
-    phase = 'Luteal phase'; chance = 'Low chance of pregnancy';
-  } else {
-    phase = 'Follicular phase'; chance = 'Low chance of pregnancy';
-  }
+  let phase, chanceLabel;
+  if (inPeriod(today)) { phase = 'Menstrual phase'; chanceLabel = 'Very low'; }
+  else if (prediction.ovulation && today === todayKey(prediction.ovulation)) { phase = 'Ovulation'; chanceLabel = 'Highest'; }
+  else if (prediction.fertileStart && today >= todayKey(prediction.fertileStart) && today <= todayKey(prediction.fertileEnd)) { phase = 'Fertile window'; chanceLabel = 'Elevated'; }
+  else if (prediction.fertileEnd && today > todayKey(prediction.fertileEnd) && prediction.nextStart && today < todayKey(prediction.nextStart)) { phase = 'Luteal phase'; chanceLabel = 'Low'; }
+  else { phase = 'Follicular phase'; chanceLabel = 'Low'; }
 
   const intercourseCount = logsCache.filter(l =>
-    l.sexualActivity && l.date >= lastPeriod.start && l.date <= today
+    l.intercourseType && l.intercourseType !== 'none' && l.date >= lastPeriod.start && l.date <= today
   ).length;
 
-  phaseEl.textContent = phase;
-  lastEl.textContent = `${lastPeriod.start}${lastPeriod.end ? ' – ' + lastPeriod.end : ' (ongoing)'}`;
-  dayEl.textContent = `Day ${cycleDayNum}`;
-  nextEl.textContent = prediction.nextStart ? todayKey(prediction.nextStart) : '—';
+  const recentSymptoms = logsCache.filter(l => l.date >= todayKey(addDays(today, -3)) && l.symptoms && l.symptoms.length)
+    .flatMap(l => l.symptoms);
 
-  const oldExtra = document.getElementById('dashboard-extra');
-  if (oldExtra) oldExtra.remove();
-  phaseEl.insertAdjacentHTML('afterend',
-    `<div id="dashboard-extra" style="font-size:.85rem; color:var(--text-dim); margin:-4px 0 10px;">${chance} · Intercourse logged this cycle: ${intercourseCount}</div>`);
+  let chanceExtra = '';
+  if (mode === 'avoid') chanceExtra = ' (not a guaranteed contraception method)';
+
+  cycleCardsEl.innerHTML = `
+    <div class="stat-card"><div class="stat-label">Cycle day</div><div class="stat-value">Day ${cycleDayNum}</div><div class="stat-sub">${phase}</div></div>
+    <div class="stat-card"><div class="stat-label">Period countdown</div><div class="stat-value">${periodCountdown !== null ? periodCountdown + 'd' : '—'}</div></div>
+    <div class="stat-card"><div class="stat-label">Ovulation countdown</div><div class="stat-value">${ovulationCountdown !== null ? (ovulationCountdown >= 0 ? ovulationCountdown + 'd' : 'Passed') : '—'}</div></div>
+    <div class="stat-card"><div class="stat-label">Pregnancy chance</div><div class="stat-value" style="font-size:1rem;">${chanceLabel}${chanceExtra}</div></div>
+    <div class="stat-card"><div class="stat-label">Cycle regularity</div><div class="stat-value" style="font-size:1rem;">${regularityLabel(prediction.cycleLens)}</div></div>
+    <div class="stat-card"><div class="stat-label">Intercourse this cycle</div><div class="stat-value">${intercourseCount}</div></div>
+  `;
+
+  tipEl.textContent = pickTip(phase, mode, recentSymptoms);
 }
+
+/* ---------------- Calendar ---------------- */
 
 function shiftMonth(delta){
   viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + delta, 1);
@@ -656,10 +941,10 @@ const MONTH_NAMES = ['January','February','March','April','May','June','July','A
 function renderCalendar(){
   const grid = document.getElementById('calendar-grid');
   const label = document.getElementById('month-label');
+  if (!grid) return;
   label.textContent = `${MONTH_NAMES[viewMonth.getMonth()]} ${viewMonth.getFullYear()}`;
 
   const prediction = estimateCycle();
-
   const firstOfMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
   const daysInMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0).getDate();
   const leadingBlanks = firstOfMonth.getDay();
@@ -685,14 +970,22 @@ function renderCalendar(){
 
 window.selectFlow = function(flow){
   selectedFlow = flow;
-  document.querySelectorAll('#flow-chips .chip').forEach(c =>
-    c.classList.toggle('selected', c.dataset.flow === flow));
+  document.querySelectorAll('#flow-chips .chip').forEach(c => c.classList.toggle('selected', c.dataset.flow === flow));
 };
-
+window.selectMood = function(mood){
+  selectedMood = (selectedMood === mood) ? null : mood;
+  applyMoodVisual();
+};
+function applyMoodVisual(){
+  document.querySelectorAll('#mood-chips .chip').forEach(c => c.classList.toggle('selected', c.dataset.mood === selectedMood));
+}
+window.selectIntercourse = function(val){
+  selectedIntercourse = val;
+  document.querySelectorAll('#intercourse-segment button').forEach(b => b.classList.toggle('selected', b.dataset.val === val));
+};
 window.toggleSymptom = function(s){
   if (selectedSymptoms.has(s)) selectedSymptoms.delete(s); else selectedSymptoms.add(s);
-  document.querySelectorAll('#symptom-chips .chip').forEach(c =>
-    c.classList.toggle('selected', selectedSymptoms.has(c.dataset.symptom)));
+  document.querySelectorAll('#symptom-chips .chip').forEach(c => c.classList.toggle('selected', selectedSymptoms.has(c.dataset.symptom)));
 };
 
 window.loadLogForDate = async function(){
@@ -701,29 +994,75 @@ window.loadLogForDate = async function(){
   const snap = await db.collection('users').doc(currentUser.uid).collection('logs').doc(dateKey).get();
   const data = snap.exists ? snap.data() : {};
   selectedFlow = data.flow || 'none';
+  selectedMood = data.mood || null;
+  selectedIntercourse = data.intercourseType || 'none';
   selectedSymptoms = new Set(data.symptoms || []);
+  document.getElementById('log-pain').value = data.painScore || 0;
+  document.getElementById('pain-val').textContent = data.painScore || 0;
+  document.getElementById('log-ovtest').value = data.ovulationTest || '';
+  document.getElementById('log-pgtest').value = data.pregnancyTest || '';
   document.getElementById('log-temp').value = data.basalTemp || '';
   document.getElementById('log-mucus').value = data.cervicalMucus || '';
-  document.getElementById('log-intercourse').checked = !!data.sexualActivity;
+  document.getElementById('log-weight').value = data.weightKg || '';
+  document.getElementById('log-water').value = data.waterMl || '';
+  document.getElementById('log-sleep').value = data.sleepHrs || '';
+  document.getElementById('log-exercise').value = data.exerciseMin || '';
   document.getElementById('log-notes').value = data.notes || '';
   selectFlow(selectedFlow);
-  document.querySelectorAll('#symptom-chips .chip').forEach(c =>
-    c.classList.toggle('selected', selectedSymptoms.has(c.dataset.symptom)));
+  applyMoodVisual();
+  selectIntercourse(selectedIntercourse);
+  document.querySelectorAll('#symptom-chips .chip').forEach(c => c.classList.toggle('selected', selectedSymptoms.has(c.dataset.symptom)));
 };
 
 window.saveLog = async function(){
   const dateKey = document.getElementById('log-date').value || todayKey();
   await db.collection('users').doc(currentUser.uid).collection('logs').doc(dateKey).set({
-    date: dateKey, flow: selectedFlow, symptoms: [...selectedSymptoms],
+    date: dateKey, flow: selectedFlow, mood: selectedMood,
+    painScore: parseInt(document.getElementById('log-pain').value) || 0,
+    symptoms: [...selectedSymptoms],
+    intercourseType: selectedIntercourse,
+    ovulationTest: document.getElementById('log-ovtest').value || null,
+    pregnancyTest: document.getElementById('log-pgtest').value || null,
     basalTemp: parseFloat(document.getElementById('log-temp').value) || null,
     cervicalMucus: document.getElementById('log-mucus').value || null,
-    sexualActivity: document.getElementById('log-intercourse').checked,
+    weightKg: parseFloat(document.getElementById('log-weight').value) || null,
+    waterMl: parseInt(document.getElementById('log-water').value) || null,
+    sleepHrs: parseFloat(document.getElementById('log-sleep').value) || null,
+    exerciseMin: parseInt(document.getElementById('log-exercise').value) || null,
     notes: document.getElementById('log-notes').value.trim()
   }, { merge: true });
   const msgEl = document.getElementById('log-msg');
   msgEl.textContent = 'Entry saved'; msgEl.style.display = 'block';
   setTimeout(() => msgEl.style.display = 'none', 2500);
 };
+
+/* ---------------- Trends (charts) ---------------- */
+
+function renderTrends(){
+  const prediction = estimateCycle();
+  const cycleLens = (prediction.cycleLens || []).slice().reverse();
+  const ctx1 = document.getElementById('chart-cyclelen');
+  if (chartCycleLen) chartCycleLen.destroy();
+  if (ctx1 && typeof Chart !== 'undefined') {
+    chartCycleLen = new Chart(ctx1, {
+      type: 'bar',
+      data: { labels: cycleLens.map((_,i) => 'Cycle ' + (i+1)), datasets: [{ label: 'Cycle length (days)', data: cycleLens, backgroundColor: '#E8607A' }] },
+      options: { plugins: { legend: { display: false }, title: { display: true, text: 'Recent cycle lengths', color: '#F3EAF0' } }, scales: { x: { ticks: { color:'#B7A6C2' } }, y: { ticks: { color:'#B7A6C2' } } } }
+    });
+  }
+
+  const last14 = [...logsCache].filter(l => l.mood).sort((a,b) => new Date(a.date) - new Date(b.date)).slice(-14);
+  const moodScale = { great: 5, okay: 4, low: 2, irritable: 1, anxious: 1 };
+  const ctx2 = document.getElementById('chart-mood');
+  if (chartMood) chartMood.destroy();
+  if (ctx2 && typeof Chart !== 'undefined') {
+    chartMood = new Chart(ctx2, {
+      type: 'line',
+      data: { labels: last14.map(l => l.date.slice(5)), datasets: [{ label: 'Mood', data: last14.map(l => moodScale[l.mood] || 3), borderColor: '#49A99C', tension: 0.3 }] },
+      options: { plugins: { legend: { display: false }, title: { display: true, text: 'Mood (last 14 logged days)', color: '#F3EAF0' } }, scales: { x: { ticks: { color:'#B7A6C2' } }, y: { min:0, max:6, ticks: { color:'#B7A6C2' } } } }
+    });
+  }
+}
 
 selectFlow('none');
 
