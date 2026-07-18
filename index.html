@@ -80,7 +80,7 @@
   .mode-banner .change-link{font-size:.8rem; color:var(--teal); background:none; border:none;}
   .circle-wrap{display:flex; justify-content:center; margin:8px 0 18px;}
   .card-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
-  .stat-card{background:var(--panel); border-radius:14px; padding:14px;}
+  .stat-card{background:var(--panel); border-radius:14px; padding:14px; cursor:pointer;}
   .stat-card .stat-label{font-size:.72rem; color:var(--text-dim); margin-bottom:4px;}
   .stat-card .stat-value{font-size:1.25rem; font-weight:700;}
   .stat-card .stat-sub{font-size:.72rem; color:var(--text-dim); margin-top:2px;}
@@ -208,6 +208,13 @@
         <button class="change-link" onclick="showTab('profile')">Change</button>
       </div>
 
+      <div class="card" id="last-period-banner" style="text-align:center; font-weight:700; font-size:1.05rem;">
+        No period logged yet
+      </div>
+
+      <button class="btn-primary" onclick="logPeriodToday()">Log period today</button>
+      <button class="btn-ghost" onclick="showTab('calendar'); setTimeout(togglePastPeriodForm, 50);">Log for a different date</button>
+
       <div class="circle-wrap" id="circle-wrap"></div>
 
       <div id="dashboard-cycle-cards" class="card-grid"></div>
@@ -217,9 +224,31 @@
       <p class="disclaimer">Predictions and pregnancy-chance estimates are approximations based on your logged data — not a medical diagnosis or a guaranteed method of contraception. Consult a healthcare provider for personal medical advice.</p>
     </div>
 
+    <!-- Detail modal, opened by tapping a dashboard card -->
+    <div id="detail-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:50; align-items:flex-end; justify-content:center;">
+      <div style="background:var(--panel); width:100%; max-width:460px; border-radius:18px 18px 0 0; padding:22px; max-height:70vh; overflow-y:auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <strong id="detail-modal-title" style="font-size:1.1rem;"></strong>
+          <button onclick="closeDetail()" style="background:none; color:var(--text-dim); font-size:1.3rem; padding:0;">✕</button>
+        </div>
+        <div id="detail-modal-body" style="color:var(--text-dim); font-size:.9rem; line-height:1.5;"></div>
+      </div>
+    </div>
+
     <!-- ============ CALENDAR TAB ============ -->
     <div class="tabpanel" id="panel-calendar">
       <button class="btn-primary" onclick="logPeriodToday()">Log period today</button>
+      <button class="btn-ghost" onclick="togglePastPeriodForm()">Log a period for a different date</button>
+
+      <div id="past-period-form" style="display:none; margin-top:12px;">
+        <label for="pp-start">Period start date</label>
+        <input id="pp-start" type="date" />
+        <label for="pp-end">Period end date (optional — leave blank if ongoing)</label>
+        <input id="pp-end" type="date" />
+        <button class="btn-primary" onclick="savePastPeriod()">Save period</button>
+        <div class="msg" id="pp-msg" style="display:none;"></div>
+      </div>
+
       <div class="month-nav" style="margin-top:18px;">
         <button onclick="shiftMonth(-1)">‹</button>
         <strong id="month-label"></strong>
@@ -232,6 +261,9 @@
         <span><span class="dot" style="background:var(--teal);"></span>Ovulation</span>
         <span><span class="dot" style="background:var(--rose);"></span>Predicted period</span>
       </div>
+
+      <h3>Logged periods</h3>
+      <div id="period-list"></div>
     </div>
 
     <!-- ============ LOG TAB ============ -->
@@ -701,6 +733,7 @@ function watchPeriods(){
     periodsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderCalendar();
     renderDashboard();
+    renderPeriodList();
   });
 }
 
@@ -728,6 +761,65 @@ window.logPeriodToday = async function(){
   batch.set(newRef, { start: today, end: null });
   await batch.commit();
 };
+
+window.togglePastPeriodForm = function(){
+  const form = document.getElementById('past-period-form');
+  const isHidden = form.style.display === 'none';
+  form.style.display = isHidden ? 'block' : 'none';
+  if (isHidden) {
+    document.getElementById('pp-start').value = todayKey();
+    document.getElementById('pp-end').value = '';
+  }
+};
+
+window.savePastPeriod = async function(){
+  const start = document.getElementById('pp-start').value;
+  const end = document.getElementById('pp-end').value || null;
+  const msgEl = document.getElementById('pp-msg');
+  if (!start) { msgEl.textContent = 'Please pick a start date.'; msgEl.style.display = 'block'; return; }
+  if (end && end < start) { msgEl.textContent = 'End date must be after start date.'; msgEl.style.display = 'block'; return; }
+  const periodsCol = db.collection('users').doc(currentUser.uid).collection('periods');
+  const existing = periodsCache.find(p => p.start === start);
+  if (existing) {
+    await periodsCol.doc(existing.id).set({ start, end }, { merge: true });
+  } else {
+    await periodsCol.add({ start, end });
+  }
+  msgEl.textContent = 'Period saved.'; msgEl.style.display = 'block';
+  setTimeout(() => { msgEl.style.display = 'none'; document.getElementById('past-period-form').style.display = 'none'; }, 1200);
+};
+
+window.editPeriod = function(id){
+  const p = periodsCache.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('past-period-form').style.display = 'block';
+  document.getElementById('pp-start').value = p.start;
+  document.getElementById('pp-end').value = p.end || '';
+};
+
+window.deletePeriod = async function(id){
+  if (!confirm('Delete this logged period?')) return;
+  await db.collection('users').doc(currentUser.uid).collection('periods').doc(id).delete();
+};
+
+function renderPeriodList(){
+  const listEl = document.getElementById('period-list');
+  if (!listEl) return;
+  if (periodsCache.length === 0) {
+    listEl.innerHTML = `<div class="stat-card">No periods logged yet.</div>`;
+    return;
+  }
+  const sorted = [...periodsCache].sort((a,b) => new Date(b.start) - new Date(a.start));
+  listEl.innerHTML = sorted.map(p => `
+    <div class="card" style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px;">
+      <div>${p.start}${p.end ? ' – ' + p.end : ' (ongoing)'}</div>
+      <div>
+        <button class="link" onclick="editPeriod('${p.id}')" style="margin-right:14px;">Edit</button>
+        <button class="link" style="color:var(--rose);" onclick="deletePeriod('${p.id}')">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
 
 /* ---------------- Cycle math ---------------- */
 
@@ -844,14 +936,30 @@ function pickTip(phase, mode, recentSymptoms){
   return "Log your symptoms and mood regularly for more accurate predictions over time.";
 }
 
+window.closeDetail = function(){ document.getElementById('detail-modal').style.display = 'none'; };
+window.showDetail = function(title, body){
+  document.getElementById('detail-modal-title').textContent = title;
+  document.getElementById('detail-modal-body').innerHTML = body;
+  document.getElementById('detail-modal').style.display = 'flex';
+};
+
 function renderDashboard(){
   renderCircle();
   const cycleCardsEl = document.getElementById('dashboard-cycle-cards');
   const pregCardsEl = document.getElementById('dashboard-pregnancy-cards');
   const tipEl = document.getElementById('dashboard-tip');
+  const bannerEl = document.getElementById('last-period-banner');
   if (!cycleCardsEl) return;
 
   const mode = profileCache.mode || 'cycle';
+  const sortedAll = [...periodsCache].sort((a,b) => new Date(b.start) - new Date(a.start));
+  const lastLogged = sortedAll[0];
+
+  if (bannerEl) {
+    bannerEl.innerHTML = lastLogged
+      ? `Last period: <span style="color:var(--rose);">${lastLogged.start}${lastLogged.end ? ' – ' + lastLogged.end : ' (ongoing)'}</span>`
+      : `No period logged yet — tap "Log period today" below to start`;
+  }
 
   if (mode === 'pregnant') {
     cycleCardsEl.style.display = 'none';
@@ -872,11 +980,11 @@ function renderDashboard(){
     const daysToDue = daysBetween(today, dueDate);
 
     pregCardsEl.innerHTML = `
-      <div class="stat-card"><div class="stat-label">Weeks pregnant</div><div class="stat-value">${weeksPregnant}w ${dayOfWeek}d</div></div>
-      <div class="stat-card"><div class="stat-label">Trimester</div><div class="stat-value">${trimester}</div></div>
-      <div class="stat-card"><div class="stat-label">Estimated due date</div><div class="stat-value" style="font-size:1rem;">${dueDate}</div></div>
-      <div class="stat-card"><div class="stat-label">Days until due date</div><div class="stat-value">${daysToDue}</div></div>
-      <div class="stat-card" style="grid-column:1/3;"><div class="stat-label">Baby is about the size of a</div><div class="stat-value" style="font-size:1.1rem;">${babySize}</div></div>
+      <div class="stat-card" onclick="showDetail('Weeks pregnant','You are ${weeksPregnant} weeks and ${dayOfWeek} days pregnant, counting from the first day of your last period (${lmp}).')"><div class="stat-label">Weeks pregnant</div><div class="stat-value">${weeksPregnant}w ${dayOfWeek}d</div></div>
+      <div class="stat-card" onclick="showDetail('Trimester','${trimester} trimester. First trimester is weeks 1–13, second is 14–27, third is 28 onward.')"><div class="stat-label">Trimester</div><div class="stat-value">${trimester}</div></div>
+      <div class="stat-card" onclick="showDetail('Estimated due date','Based on a standard 280-day (40-week) pregnancy from your last period date. Your actual due date may be adjusted by your doctor based on ultrasound measurements.')"><div class="stat-label">Estimated due date</div><div class="stat-value" style="font-size:1rem;">${dueDate}</div></div>
+      <div class="stat-card" onclick="showDetail('Days until due date','${daysToDue} days remaining until your estimated due date.')"><div class="stat-label">Days until due date</div><div class="stat-value">${daysToDue}</div></div>
+      <div class="stat-card" style="grid-column:1/3;" onclick="showDetail('Baby size','At ${weeksPregnant} weeks, your baby is approximately the size of a ${babySize}. This is a rough size comparison, not a medical measurement.')"><div class="stat-label">Baby is about the size of a</div><div class="stat-value" style="font-size:1.1rem;">${babySize}</div></div>
     `;
     tipEl.textContent = pickTip(null, 'pregnant');
     return;
@@ -886,15 +994,14 @@ function renderDashboard(){
   pregCardsEl.style.display = 'none';
 
   if (periodsCache.length === 0) {
-    cycleCardsEl.innerHTML = `<div class="stat-card" style="grid-column:1/3;">Log your first period on the Calendar tab to unlock predictions.</div>`;
+    cycleCardsEl.innerHTML = `<div class="stat-card" style="grid-column:1/3;">Log your first period above to unlock predictions.</div>`;
     tipEl.textContent = "Log a period to get started.";
     return;
   }
 
   const prediction = estimateCycle();
   const today = todayKey();
-  const sorted = [...periodsCache].sort((a,b) => new Date(b.start) - new Date(a.start));
-  const lastPeriod = sorted[0];
+  const lastPeriod = sortedAll[0];
   const cycleDayNum = daysBetween(lastPeriod.start, today) + 1;
   const periodCountdown = prediction.nextStart ? daysBetween(today, todayKey(prediction.nextStart)) : null;
   const ovulationCountdown = prediction.ovulation ? daysBetween(today, todayKey(prediction.ovulation)) : null;
@@ -916,13 +1023,33 @@ function renderDashboard(){
   let chanceExtra = '';
   if (mode === 'avoid') chanceExtra = ' (not a guaranteed contraception method)';
 
+  const phaseExplain = {
+    'Menstrual phase': 'Your period is happening now, counted from your logged start date.',
+    'Follicular phase': 'The time between your period ending and your fertile window beginning.',
+    'Fertile window': 'The days when pregnancy is most possible, ending on your estimated ovulation day.',
+    'Ovulation': 'The estimated day an egg is released — the single most fertile day of your cycle.',
+    'Luteal phase': 'The time between ovulation and your next expected period.'
+  };
+
   cycleCardsEl.innerHTML = `
-    <div class="stat-card"><div class="stat-label">Cycle day</div><div class="stat-value">Day ${cycleDayNum}</div><div class="stat-sub">${phase}</div></div>
-    <div class="stat-card"><div class="stat-label">Period countdown</div><div class="stat-value">${periodCountdown !== null ? periodCountdown + 'd' : '—'}</div></div>
-    <div class="stat-card"><div class="stat-label">Ovulation countdown</div><div class="stat-value">${ovulationCountdown !== null ? (ovulationCountdown >= 0 ? ovulationCountdown + 'd' : 'Passed') : '—'}</div></div>
-    <div class="stat-card"><div class="stat-label">Pregnancy chance</div><div class="stat-value" style="font-size:1rem;">${chanceLabel}${chanceExtra}</div></div>
-    <div class="stat-card"><div class="stat-label">Cycle regularity</div><div class="stat-value" style="font-size:1rem;">${regularityLabel(prediction.cycleLens)}</div></div>
-    <div class="stat-card"><div class="stat-label">Intercourse this cycle</div><div class="stat-value">${intercourseCount}</div></div>
+    <div class="stat-card" onclick="showDetail('Cycle day', 'You are on day ${cycleDayNum} of your cycle, counted from your last period start (${lastPeriod.start}). Current phase: <b>${phase}</b>. ${phaseExplain[phase] || ''}')">
+      <div class="stat-label">Cycle day</div><div class="stat-value">Day ${cycleDayNum}</div><div class="stat-sub">${phase}</div>
+    </div>
+    <div class="stat-card" onclick="showDetail('Period countdown', '${periodCountdown !== null ? 'Your next period is predicted in ' + periodCountdown + ' day(s), based on the average length of your last few cycles.' : 'Log at least two periods to get a prediction.'}')">
+      <div class="stat-label">Period countdown</div><div class="stat-value">${periodCountdown !== null ? periodCountdown + 'd' : '—'}</div>
+    </div>
+    <div class="stat-card" onclick="showDetail('Ovulation countdown', '${ovulationCountdown !== null ? (ovulationCountdown >= 0 ? 'Ovulation is estimated in ' + ovulationCountdown + ' day(s).' : 'Estimated ovulation for this cycle has already passed.') : 'Log at least two periods to get a prediction.'}')">
+      <div class="stat-label">Ovulation countdown</div><div class="stat-value">${ovulationCountdown !== null ? (ovulationCountdown >= 0 ? ovulationCountdown + 'd' : 'Passed') : '—'}</div>
+    </div>
+    <div class="stat-card" onclick="showDetail('Pregnancy chance', 'Estimated chance right now: <b>${chanceLabel}</b>${chanceExtra}. This is based on where you are in your cycle, not a test result — it is not a diagnosis or a guaranteed method of contraception.')">
+      <div class="stat-label">Pregnancy chance</div><div class="stat-value" style="font-size:1rem;">${chanceLabel}${chanceExtra}</div>
+    </div>
+    <div class="stat-card" onclick="showDetail('Cycle regularity', '${regularityLabel(prediction.cycleLens)}. This looks at how much your last few cycle lengths varied from each other — the more consistent, the more \\'regular\\' your cycle is considered.')">
+      <div class="stat-label">Cycle regularity</div><div class="stat-value" style="font-size:1rem;">${regularityLabel(prediction.cycleLens)}</div>
+    </div>
+    <div class="stat-card" onclick="showTab('log')">
+      <div class="stat-label">Intercourse this cycle</div><div class="stat-value">${intercourseCount}</div><div class="stat-sub">Tap to log more</div>
+    </div>
   `;
 
   tipEl.textContent = pickTip(phase, mode, recentSymptoms);
