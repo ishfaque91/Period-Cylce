@@ -6,6 +6,13 @@
 <title>Cycle & Us</title>
 <link rel="manifest" href="manifest.json" />
 <meta name="theme-color" content="#241A2C" />
+<!-- Android/Chrome: request full-screen, standalone display when installed -->
+<meta name="mobile-web-app-capable" content="yes" />
+<!-- iOS Safari: closest equivalent, since iOS doesn't read manifest.json fully -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Cycle & Us" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
 <style>
   :root{
     --bg:#241A2C; --panel:#2E2138; --panel-2:#382a44;
@@ -221,6 +228,10 @@
 
       <div class="tip-card" id="dashboard-tip">Log a period to get started.</div>
       <p class="disclaimer">Predictions and pregnancy-chance estimates are approximations based on your logged data — not a medical diagnosis or a guaranteed method of contraception. Consult a healthcare provider for personal medical advice.</p>
+
+      <h3>Trends</h3>
+      <div class="mini-chart"><canvas id="chart-cyclelen"></canvas></div>
+      <div class="mini-chart"><canvas id="chart-mood"></canvas></div>
     </div>
 
     <!-- Detail modal, opened by tapping a dashboard card -->
@@ -295,14 +306,6 @@
       <label>Symptoms</label>
       <div class="chip-row" id="symptom-chips"></div>
 
-      <label>Intercourse</label>
-      <div class="segment" id="intercourse-segment">
-        <button data-val="none" onclick="selectIntercourse('none')">None</button>
-        <button data-val="protected" onclick="selectIntercourse('protected')">Protected</button>
-        <button data-val="unprotected" onclick="selectIntercourse('unprotected')">Unprotected</button>
-        <button data-val="withdrawal" onclick="selectIntercourse('withdrawal')">Withdrawal</button>
-      </div>
-
       <label for="log-ovtest">Ovulation test</label>
       <select id="log-ovtest">
         <option value="">Not tracked</option>
@@ -376,10 +379,6 @@
       <button class="btn-primary" onclick="saveProfile()">Save changes</button>
       <div class="msg" id="profile-msg" style="display:none;"></div>
 
-      <h3>Trends</h3>
-      <div class="mini-chart"><canvas id="chart-cyclelen"></canvas></div>
-      <div class="mini-chart"><canvas id="chart-mood"></canvas></div>
-
       <h3>Data</h3>
       <button class="btn-outline" onclick="showImportBox()">Import data from old app</button>
       <div id="import-box" style="display:none; margin-top:12px;">
@@ -395,10 +394,43 @@
       <div class="msg error" id="account-msg" style="display:none;"></div>
     </div>
 
+    <!-- ============ INTERCOURSE TAB (kept separate — used only to help estimate/avoid pregnancy) ============ -->
+    <div class="tabpanel" id="panel-intercourse">
+      <p class="sub" style="margin-bottom:14px;">Used only to help estimate or avoid pregnancy — kept separate from your daily log.</p>
+
+      <div class="month-nav">
+        <button onclick="shiftIcMonth(-1)">‹</button>
+        <strong id="ic-month-label"></strong>
+        <button onclick="shiftIcMonth(1)">›</button>
+      </div>
+      <div class="grid" id="ic-calendar-grid"></div>
+      <div class="legend">
+        <span><span class="dot" style="background:#49A99C;"></span>Protected</span>
+        <span><span class="dot" style="background:#E8607A;"></span>Unprotected</span>
+        <span><span class="dot" style="background:#D8A94D;"></span>Withdrawal</span>
+      </div>
+
+      <h3>Log a date</h3>
+      <label for="ic-date">Date</label>
+      <input id="ic-date" type="date" />
+      <label>Type</label>
+      <div class="segment" id="ic-type-segment">
+        <button data-val="protected" onclick="selectIcType('protected')">Protected</button>
+        <button data-val="unprotected" onclick="selectIcType('unprotected')">Unprotected</button>
+        <button data-val="withdrawal" onclick="selectIcType('withdrawal')">Withdrawal</button>
+      </div>
+      <button class="btn-primary" onclick="saveIntercourse()">Save</button>
+      <div class="msg" id="ic-msg" style="display:none;"></div>
+
+      <h3>Logged dates</h3>
+      <div id="ic-list"></div>
+    </div>
+
     <nav class="bottomnav">
       <button class="active" data-tab="dashboard" onclick="showTab('dashboard')"><span class="icon">🏠</span>Dashboard</button>
       <button data-tab="calendar" onclick="showTab('calendar')"><span class="icon">📅</span>Calendar</button>
       <button data-tab="log" onclick="showTab('log')"><span class="icon">📝</span>Log</button>
+      <button data-tab="intercourse" onclick="showTab('intercourse')"><span class="icon">💗</span>Intimacy</button>
       <button data-tab="profile" onclick="showTab('profile')"><span class="icon">👤</span>Profile</button>
     </nav>
   </div>
@@ -452,7 +484,8 @@ let profileCache = {};
 let selectedSymptoms = new Set();
 let selectedFlow = 'none';
 let selectedMood = null;
-let selectedIntercourse = 'none';
+let icViewMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let icSelectedType = 'protected';
 let selectedMode = 'cycle';
 let viewMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let unsubPeriods = null;
@@ -485,15 +518,16 @@ function showTab(tab){
   document.querySelectorAll('nav.bottomnav button').forEach(b => b.classList.remove('active'));
   const navBtn = document.querySelector(`nav.bottomnav button[data-tab="${tab}"]`);
   if (navBtn) navBtn.classList.add('active');
-  const titles = { dashboard:'Dashboard', calendar:'Calendar', log:'Log entry', profile:'Profile' };
+  const titles = { dashboard:'Dashboard', calendar:'Calendar', log:'Log entry', intercourse:'Intimacy', profile:'Profile' };
   document.getElementById('topbar-title').textContent = titles[tab] || 'Cycle & Us';
   document.querySelector('nav.bottomnav').style.display = 'flex';
   if (tab === 'log' && !document.getElementById('log-date').value) {
     document.getElementById('log-date').value = todayKey();
     loadLogForDate();
   }
-  if (tab === 'profile') { loadProfile(); renderTrends(); }
-  if (tab === 'dashboard') renderDashboard();
+  if (tab === 'profile') { loadProfile(); }
+  if (tab === 'dashboard') { renderDashboard(); renderTrends(); }
+  if (tab === 'intercourse') { renderIntercourseCalendar(); renderIntercourseList(); document.getElementById('ic-date').max = todayKey(); }
 }
 window.showTab = showTab;
 
@@ -677,9 +711,8 @@ window.saveProfile = async function(){
   const modeNames = { cycle:'Cycle tracking', ttc:'Trying to conceive', avoid:'Avoiding pregnancy', pregnant:'Pregnant' };
   document.getElementById('mode-value').textContent = modeNames[selectedMode];
   const msgEl = document.getElementById('profile-msg');
-  msgEl.textContent = 'Profile saved'; msgEl.style.display = 'block';
-  setTimeout(() => msgEl.style.display = 'none', 2500);
-  renderDashboard();
+  msgEl.textContent = 'Profile saved — returning to dashboard'; msgEl.style.display = 'block';
+  setTimeout(() => { msgEl.style.display = 'none'; showTab('dashboard'); }, 900);
 };
 
 window.showImportBox = function(){ document.getElementById('import-box').style.display = 'block'; };
@@ -742,6 +775,8 @@ function watchLogs(){
   unsubLogs = q.onSnapshot((snap) => {
     logsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderDashboard();
+    renderIntercourseCalendar();
+    renderIntercourseList();
   });
 }
 
@@ -1020,10 +1055,6 @@ function renderDashboard(){
   else if (prediction.fertileEnd && today > todayKey(prediction.fertileEnd) && prediction.nextStart && today < todayKey(prediction.nextStart)) { phase = 'Luteal phase'; chanceLabel = 'Low'; }
   else { phase = 'Follicular phase'; chanceLabel = 'Low'; }
 
-  const intercourseCount = logsCache.filter(l =>
-    l.intercourseType && l.intercourseType !== 'none' && l.date >= lastPeriod.start && l.date <= today
-  ).length;
-
   const recentSymptoms = logsCache.filter(l => l.date >= todayKey(addDays(today, -3)) && l.symptoms && l.symptoms.length)
     .flatMap(l => l.symptoms);
 
@@ -1048,12 +1079,12 @@ function renderDashboard(){
     <div class="stat-card" style="background:#1F4440;" onclick="showTab('calendar')">
       <div class="stat-label">Ovulation date</div><div class="stat-value" style="font-size:1rem;">${prediction.ovulation ? todayKey(prediction.ovulation) : '—'}</div><div class="stat-sub">Tap to see calendar</div>
     </div>
-    <div class="stat-card" style="background:#5A3444;" onclick="showTab('log')">
-      <div class="stat-label">Intercourse this cycle</div><div class="stat-value">${intercourseCount}</div><div class="stat-sub">Tap to log</div>
+    <div class="stat-card" style="background:#4a3350;" onclick="showTab('calendar')">
+      <div class="stat-label">Cycle regularity</div><div class="stat-value" style="font-size:1rem;">${regularityLabel(prediction.cycleLens)}</div><div class="stat-sub">Tap to see calendar</div>
     </div>
   `;
 
-  tipEl.innerHTML = `${pickTip(phase, mode, recentSymptoms)}<br><br><b>Pregnancy chance:</b> ${chanceLabel}${chanceExtra} · <b>Cycle regularity:</b> ${regularityLabel(prediction.cycleLens)}`;
+  tipEl.innerHTML = `${pickTip(phase, mode, recentSymptoms)}<br><br><b>Pregnancy chance:</b> ${chanceLabel}${chanceExtra}`;
 }
 
 /* ---------------- Calendar ---------------- */
@@ -1094,6 +1125,91 @@ function renderCalendar(){
   grid.innerHTML = html;
 }
 
+/* ---------------- Intimacy tab (kept separate from daily log; used only to help estimate/avoid pregnancy) ---------------- */
+
+const IC_COLORS = { protected: '#49A99C', unprotected: '#E8607A', withdrawal: '#D8A94D' };
+
+window.shiftIcMonth = function(delta){
+  icViewMonth = new Date(icViewMonth.getFullYear(), icViewMonth.getMonth() + delta, 1);
+  renderIntercourseCalendar();
+};
+
+window.selectIcType = function(val){
+  icSelectedType = val;
+  document.querySelectorAll('#ic-type-segment button').forEach(b => b.classList.toggle('selected', b.dataset.val === val));
+};
+
+function renderIntercourseCalendar(){
+  const grid = document.getElementById('ic-calendar-grid');
+  const label = document.getElementById('ic-month-label');
+  if (!grid) return;
+  label.textContent = `${MONTH_NAMES[icViewMonth.getMonth()]} ${icViewMonth.getFullYear()}`;
+
+  const firstOfMonth = new Date(icViewMonth.getFullYear(), icViewMonth.getMonth(), 1);
+  const daysInMonth = new Date(icViewMonth.getFullYear(), icViewMonth.getMonth() + 1, 0).getDate();
+  const leadingBlanks = firstOfMonth.getDay();
+  const today = todayKey();
+  const byDate = {};
+  logsCache.forEach(l => { if (l.intercourseType && l.intercourseType !== 'none') byDate[l.date] = l.intercourseType; });
+
+  let html = '';
+  for (let i = 0; i < leadingBlanks; i++) html += '<div></div>';
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(icViewMonth.getFullYear(), icViewMonth.getMonth(), day);
+    const key = todayKey(date);
+    const type = byDate[key];
+    const isToday = key === today;
+    const style = type ? `background:${IC_COLORS[type]}; color:#12241F; font-weight:700;` : '';
+    const cls = 'day' + (isToday ? ' today' : '');
+    html += `<div class="${cls}" style="${style}" onclick="editIntercourse('${key}')">${day}</div>`;
+  }
+  grid.innerHTML = html;
+}
+
+window.saveIntercourse = async function(){
+  const date = document.getElementById('ic-date').value;
+  const msgEl = document.getElementById('ic-msg');
+  const today = todayKey();
+  if (!date) { msgEl.textContent = 'Please pick a date.'; msgEl.style.display = 'block'; return; }
+  if (date > today) { msgEl.textContent = 'Date cannot be in the future.'; msgEl.style.display = 'block'; return; }
+  await db.collection('users').doc(currentUser.uid).collection('logs').doc(date).set({
+    date, intercourseType: icSelectedType
+  }, { merge: true });
+  msgEl.textContent = 'Saved.'; msgEl.style.display = 'block';
+  setTimeout(() => msgEl.style.display = 'none', 1200);
+};
+
+window.editIntercourse = function(date){
+  document.getElementById('ic-date').value = date;
+  const existing = logsCache.find(l => l.date === date && l.intercourseType && l.intercourseType !== 'none');
+  selectIcType(existing ? existing.intercourseType : 'protected');
+};
+
+window.deleteIntercourse = async function(date){
+  if (!confirm('Remove this logged date?')) return;
+  await db.collection('users').doc(currentUser.uid).collection('logs').doc(date).set({ intercourseType: 'none' }, { merge: true });
+};
+
+function renderIntercourseList(){
+  const listEl = document.getElementById('ic-list');
+  if (!listEl) return;
+  const entries = logsCache.filter(l => l.intercourseType && l.intercourseType !== 'none')
+    .sort((a,b) => new Date(b.date) - new Date(a.date));
+  if (entries.length === 0) {
+    listEl.innerHTML = `<div class="stat-card">No dates logged yet.</div>`;
+    return;
+  }
+  listEl.innerHTML = entries.map(e => `
+    <div class="card" style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px;">
+      <div>${e.date} <span style="color:${IC_COLORS[e.intercourseType]};">● ${e.intercourseType}</span></div>
+      <div>
+        <button class="link" onclick="editIntercourse('${e.date}')" style="margin-right:14px;">Edit</button>
+        <button class="link" style="color:var(--rose);" onclick="deleteIntercourse('${e.date}')">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
 /* ---------------- Daily log ---------------- */
 
 window.selectFlow = function(flow){
@@ -1107,10 +1223,6 @@ window.selectMood = function(mood){
 function applyMoodVisual(){
   document.querySelectorAll('#mood-chips .chip').forEach(c => c.classList.toggle('selected', c.dataset.mood === selectedMood));
 }
-window.selectIntercourse = function(val){
-  selectedIntercourse = val;
-  document.querySelectorAll('#intercourse-segment button').forEach(b => b.classList.toggle('selected', b.dataset.val === val));
-};
 window.toggleSymptom = function(s){
   if (selectedSymptoms.has(s)) selectedSymptoms.delete(s); else selectedSymptoms.add(s);
   document.querySelectorAll('#symptom-chips .chip').forEach(c => c.classList.toggle('selected', selectedSymptoms.has(c.dataset.symptom)));
@@ -1123,7 +1235,6 @@ window.loadLogForDate = async function(){
   const data = snap.exists ? snap.data() : {};
   selectedFlow = data.flow || 'none';
   selectedMood = data.mood || null;
-  selectedIntercourse = data.intercourseType || 'none';
   selectedSymptoms = new Set(data.symptoms || []);
   document.getElementById('log-pain').value = data.painScore || 0;
   document.getElementById('pain-val').textContent = data.painScore || 0;
@@ -1138,7 +1249,6 @@ window.loadLogForDate = async function(){
   document.getElementById('log-notes').value = data.notes || '';
   selectFlow(selectedFlow);
   applyMoodVisual();
-  selectIntercourse(selectedIntercourse);
   document.querySelectorAll('#symptom-chips .chip').forEach(c => c.classList.toggle('selected', selectedSymptoms.has(c.dataset.symptom)));
 };
 
@@ -1148,7 +1258,6 @@ window.saveLog = async function(){
     date: dateKey, flow: selectedFlow, mood: selectedMood,
     painScore: parseInt(document.getElementById('log-pain').value) || 0,
     symptoms: [...selectedSymptoms],
-    intercourseType: selectedIntercourse,
     ovulationTest: document.getElementById('log-ovtest').value || null,
     pregnancyTest: document.getElementById('log-pgtest').value || null,
     basalTemp: parseFloat(document.getElementById('log-temp').value) || null,
@@ -1193,6 +1302,22 @@ function renderTrends(){
 }
 
 selectFlow('none');
+
+/* ---------------- Back-button handling ----------------
+   Pressing the phone's back button would normally navigate away from
+   this page entirely (since it's a single static page, not a real
+   multi-page site). We intercept that here so back always just
+   returns to the Dashboard tab instead — it never logs anyone out,
+   since Firebase's own session is completely separate from this. */
+history.pushState({ app: true }, '', location.href);
+window.addEventListener('popstate', () => {
+  history.pushState({ app: true }, '', location.href);
+  if (document.getElementById('shell').classList.contains('active')) {
+    showTab('dashboard');
+  } else {
+    showScreen('screen-login');
+  }
+});
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
