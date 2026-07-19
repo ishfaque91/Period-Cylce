@@ -12,8 +12,8 @@ const CACHE_VERSION = 'cycle-and-us-v2';
 const PRECACHE_URLS = [
   './index.html',
   './manifest.json',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
+  './icon-192.png',
+  './icon-512.png',
   'https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js',
   'https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js',
   'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js',
