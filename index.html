@@ -145,6 +145,28 @@
   .mini-chart{background:var(--panel); border-radius:14px; padding:12px; margin-bottom:14px;}
   .mini-chart canvas{max-height:150px;}
 
+  /* Onboarding quiz */
+  .onboard-progress-track{height:4px; background:var(--panel-2); border-radius:2px; flex:1; margin:0 10px; overflow:hidden;}
+  .onboard-progress-fill{height:100%; width:0%; background:var(--rose); border-radius:2px; transition:width .35s ease;}
+  .onboard-question{font-size:1.35rem; font-weight:700; margin:6px 0 22px; line-height:1.3;}
+  .onboard-option{
+    display:block; width:100%; text-align:left; background:var(--panel); color:var(--text);
+    border:1px solid var(--border); border-radius:14px; padding:16px 18px; margin-bottom:12px; font-size:1rem; font-weight:500;
+  }
+  .onboard-option.selected{background:var(--rose); border-color:var(--rose); color:#2a1520;}
+  .onboard-step{animation:tabIn .3s ease both;}
+  .onboard-cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:20px;}
+  .onboard-cal-day{
+    aspect-ratio:1; display:flex; align-items:center; justify-content:center; border-radius:50%;
+    font-size:.85rem; color:var(--text-dim); border:1px solid transparent; cursor:pointer;
+  }
+  .onboard-cal-day.today{border-color:var(--gold);}
+  .onboard-cal-day.selected{background:var(--rose); color:#2a1520; font-weight:700;}
+  .onboard-cal-day.disabled{opacity:.25; pointer-events:none;}
+  .onboard-cal-dow{text-align:center; font-size:.7rem; color:var(--text-dim); margin-bottom:6px;}
+  .analyzing-ring{width:150px; height:150px; border-radius:50%; margin:30px auto 18px; display:flex; align-items:center; justify-content:center;}
+  .analyzing-ring-inner{width:118px; height:118px; border-radius:50%; background:var(--panel); display:flex; align-items:center; justify-content:center; font-size:1.5rem; font-weight:700;}
+
   .loading-spinner{
     width:46px; height:46px; border-radius:50%; margin:0 auto;
     border:4px solid var(--panel-2); border-top-color:var(--rose);
@@ -261,6 +283,16 @@
         <button class="btn-outline" onclick="handleResendVerification()">Resend email</button>
         <button class="btn-primary" style="margin-top:10px;" onclick="handleCheckVerified()">I've verified</button>
       </div>
+    </div>
+
+    <!-- ============ ONBOARDING QUIZ (first-time only) ============ -->
+    <div class="tabpanel" id="panel-onboarding" style="padding-top:16px;">
+      <div style="display:flex; align-items:center; margin-bottom:22px;">
+        <button id="onboard-back-btn" onclick="onboardBack()" style="background:none; color:var(--text); font-size:1.3rem; padding:4px 10px 4px 0;">‹</button>
+        <div class="onboard-progress-track"><div class="onboard-progress-fill" id="onboard-progress-fill"></div></div>
+        <button onclick="onboardSkip()" style="background:none; color:var(--text-dim); font-size:.85rem;">Skip</button>
+      </div>
+      <div id="onboard-body"></div>
     </div>
 
     <!-- ============ DASHBOARD TAB ============ -->
@@ -629,7 +661,7 @@ window.handleRegister = async function(){
     await cred.user.updateProfile({ displayName: name });
     await cred.user.sendEmailVerification();
     await db.collection('users').doc(cred.user.uid).set({
-      displayName: name, email, mode: 'cycle',
+      displayName: name, email, mode: 'cycle', onboardingComplete: false,
       cyclePrefs: { avgCycleLen: 28, avgPeriodLen: 5, lutealPhaseLen: 14 },
       createdAt: new Date().toISOString()
     });
@@ -721,15 +753,217 @@ async function renderAuthState(user){
     document.getElementById('panel-verify').classList.add('active');
     document.querySelector('nav.bottomnav').style.display = 'none';
     document.getElementById('topbar-title').textContent = 'Femovia';
-  } else {
-    document.querySelector('nav.bottomnav').style.display = 'flex';
-    await loadProfile();
-    // Return to whichever tab you were last on, instead of always jumping to Dashboard.
-    const lastTab = localStorage.getItem('femovia_last_tab') || 'dashboard';
-    showTab(lastTab);
-    watchPeriods();
-    watchLogs();
+    return;
   }
+  await loadProfile();
+  if (!profileCache.onboardingComplete) {
+    document.getElementById('panel-onboarding').classList.add('active');
+    document.querySelector('nav.bottomnav').style.display = 'none';
+    document.getElementById('topbar-title').textContent = 'Femovia';
+    startOnboarding();
+    return;
+  }
+  document.querySelector('nav.bottomnav').style.display = 'flex';
+  // Return to whichever tab you were last on, instead of always jumping to Dashboard.
+  const lastTab = localStorage.getItem('femovia_last_tab') || 'dashboard';
+  showTab(lastTab);
+  watchPeriods();
+  watchLogs();
+}
+
+/* ---------------- Onboarding quiz ---------------- */
+
+const ONBOARD_STEPS = [
+  {
+    id: 'goal', field: 'mode', type: 'choice',
+    question: 'What brings you to Femovia?',
+    options: [
+      { label: 'Track my cycle', value: 'cycle' },
+      { label: 'Trying to conceive', value: 'ttc' },
+      { label: 'Avoid pregnancy', value: 'avoid' },
+      { label: 'Track a pregnancy', value: 'pregnant' }
+    ]
+  },
+  { id: 'dob', field: 'dob', type: 'date', question: 'When were you born?' },
+  { id: 'height', field: 'heightCm', type: 'number', question: 'How tall are you?', suffix: 'cm' },
+  { id: 'weight', field: 'weightKg', type: 'number', question: 'How much do you weigh?', suffix: 'kg' },
+  {
+    id: 'period', field: 'lastPeriodDate', type: 'calendar',
+    question: (a) => a.mode === 'pregnant' ? 'When did your last period start?' : 'Tap the day your last period started'
+  }
+];
+
+let onboardIndex = 0;
+let onboardAnswers = {};
+let onboardCalMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+function onboardVisibleSteps(){
+  return ONBOARD_STEPS.filter(s => !s.showIf || s.showIf(onboardAnswers));
+}
+
+function startOnboarding(){
+  onboardIndex = 0;
+  onboardAnswers = {};
+  onboardCalMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  renderOnboardStep();
+}
+
+function updateOnboardChrome(){
+  const steps = onboardVisibleSteps();
+  document.getElementById('onboard-progress-fill').style.width = `${Math.round((onboardIndex / steps.length) * 100)}%`;
+  document.getElementById('onboard-back-btn').style.visibility = onboardIndex === 0 ? 'hidden' : 'visible';
+}
+
+function renderOnboardStep(){
+  const steps = onboardVisibleSteps();
+  const body = document.getElementById('onboard-body');
+  if (onboardIndex >= steps.length) { runOnboardAnalyzing(); return; }
+  const step = steps[onboardIndex];
+  updateOnboardChrome();
+  const questionText = typeof step.question === 'function' ? step.question(onboardAnswers) : step.question;
+
+  let html = `<div class="onboard-step"><div class="onboard-question">${questionText}</div>`;
+
+  if (step.type === 'choice') {
+    html += step.options.map(o => `
+      <button class="onboard-option${onboardAnswers[step.field] === o.value ? ' selected' : ''}"
+        onclick="onboardChoose('${step.field}', ${JSON.stringify(o.value)})">${o.label}</button>
+    `).join('');
+  } else if (step.type === 'number') {
+    html += `
+      <input id="onboard-input" type="number" inputmode="decimal" placeholder="e.g. 60" value="${onboardAnswers[step.field] || ''}" style="font-size:1.4rem; text-align:center; padding:18px;" />
+      <button class="btn-primary" style="margin-top:10px;" onclick="onboardSubmitInput('${step.field}', 'number')">Next</button>
+    `;
+  } else if (step.type === 'date') {
+    html += `
+      <input id="onboard-input" type="date" value="${onboardAnswers[step.field] || ''}" max="${todayKey()}" style="font-size:1.1rem; padding:16px;" />
+      <button class="btn-primary" style="margin-top:10px;" onclick="onboardSubmitInput('${step.field}', 'text')">Next</button>
+    `;
+  } else if (step.type === 'calendar') {
+    html += renderOnboardCalendar(step.field);
+  }
+
+  html += `</div>`;
+  body.innerHTML = html;
+}
+
+function renderOnboardCalendar(field){
+  const dow = ['S','M','T','W','T','F','S'];
+  const firstOfMonth = new Date(onboardCalMonth.getFullYear(), onboardCalMonth.getMonth(), 1);
+  const daysInMonth = new Date(onboardCalMonth.getFullYear(), onboardCalMonth.getMonth() + 1, 0).getDate();
+  const leadingBlanks = firstOfMonth.getDay();
+  const today = todayKey();
+  const selected = onboardAnswers[field];
+
+  let grid = dow.map(d => `<div class="onboard-cal-dow">${d}</div>`).join('');
+  for (let i = 0; i < leadingBlanks; i++) grid += '<div></div>';
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(onboardCalMonth.getFullYear(), onboardCalMonth.getMonth(), day);
+    const key = todayKey(date);
+    let cls = 'onboard-cal-day';
+    if (key === today) cls += ' today';
+    if (key === selected) cls += ' selected';
+    if (key > today) cls += ' disabled';
+    grid += `<div class="${cls}" onclick="onboardPickDate('${field}','${key}')">${day}</div>`;
+  }
+
+  return `
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+      <button onclick="shiftOnboardCalMonth(-1)" style="background:var(--panel); padding:6px 12px;">‹</button>
+      <strong>${MONTH_NAMES[onboardCalMonth.getMonth()]} ${onboardCalMonth.getFullYear()}</strong>
+      <button onclick="shiftOnboardCalMonth(1)" style="background:var(--panel); padding:6px 12px;">›</button>
+    </div>
+    <div class="onboard-cal-grid">${grid}</div>
+    <button class="btn-primary" id="onboard-cal-confirm" style="display:${selected ? 'block' : 'none'};" onclick="onboardAdvance()">Confirm</button>
+  `;
+}
+
+window.shiftOnboardCalMonth = function(delta){
+  onboardCalMonth = new Date(onboardCalMonth.getFullYear(), onboardCalMonth.getMonth() + delta, 1);
+  renderOnboardStep();
+};
+
+window.onboardPickDate = function(field, key){
+  onboardAnswers[field] = key;
+  renderOnboardStep();
+};
+
+window.onboardChoose = function(field, value){
+  onboardAnswers[field] = value;
+  setTimeout(onboardAdvance, 180); // brief pause so the selection highlight is visible before advancing
+};
+
+window.onboardSubmitInput = function(field, kind){
+  const val = document.getElementById('onboard-input').value;
+  if (!val) return;
+  onboardAnswers[field] = kind === 'number' ? parseFloat(val) : val;
+  onboardAdvance();
+};
+
+window.onboardAdvance = function(){
+  onboardIndex++;
+  renderOnboardStep();
+};
+
+window.onboardBack = function(){
+  if (onboardIndex === 0) return;
+  onboardIndex--;
+  renderOnboardStep();
+};
+
+window.onboardSkip = function(){
+  runOnboardAnalyzing();
+};
+
+function runOnboardAnalyzing(){
+  const body = document.getElementById('onboard-body');
+  document.getElementById('onboard-progress-fill').style.width = '100%';
+  document.getElementById('onboard-back-btn').style.visibility = 'hidden';
+  body.innerHTML = `
+    <div class="onboard-step" style="text-align:center;">
+      <div class="analyzing-ring" id="analyzing-ring"><div class="analyzing-ring-inner"><span id="analyzing-pct">0%</span></div></div>
+      <div style="font-weight:600;">Setting up your dashboard…</div>
+    </div>
+  `;
+  const ring = document.getElementById('analyzing-ring');
+  const pctEl = document.getElementById('analyzing-pct');
+  let pct = 0;
+  const timer = setInterval(() => {
+    pct = Math.min(100, pct + Math.round(2 + Math.random() * 6));
+    ring.style.background = `conic-gradient(var(--rose) ${pct * 3.6}deg, var(--panel-2) 0)`;
+    pctEl.textContent = pct + '%';
+    if (pct >= 100) {
+      clearInterval(timer);
+      setTimeout(finishOnboarding, 400);
+    }
+  }, 90);
+}
+
+async function finishOnboarding(){
+  const uid = currentUser.uid;
+  const profileUpdate = { onboardingComplete: true, updatedAt: new Date().toISOString() };
+  if (onboardAnswers.mode) profileUpdate.mode = onboardAnswers.mode;
+  if (onboardAnswers.dob) profileUpdate.dob = onboardAnswers.dob;
+  if (onboardAnswers.heightCm) profileUpdate.heightCm = onboardAnswers.heightCm;
+  if (onboardAnswers.weightKg) profileUpdate.weightKg = onboardAnswers.weightKg;
+  if (onboardAnswers.lastPeriodDate) profileUpdate.lmpDate = onboardAnswers.lastPeriodDate;
+
+  await db.collection('users').doc(uid).set(profileUpdate, { merge: true });
+
+  // A logged period start date also becomes the first calendar entry,
+  // unless the person is just tracking a pregnancy (handled via lmpDate instead).
+  if (onboardAnswers.lastPeriodDate && onboardAnswers.mode !== 'pregnant') {
+    await db.collection('users').doc(uid).collection('periods').add({
+      start: onboardAnswers.lastPeriodDate, end: null
+    });
+  }
+
+  await loadProfile();
+  document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
+  document.querySelector('nav.bottomnav').style.display = 'flex';
+  showTab('dashboard');
+  watchPeriods();
+  watchLogs();
 }
 
 /* ---------------- Profile / Mode ---------------- */
@@ -969,11 +1203,12 @@ function arcPath(cx, cy, r, startAngle, endAngle){
 
 function renderCircle(){
   const wrap = document.getElementById('circle-wrap');
-  const size = 220, cx = size/2, cy = size/2, r = 88;
+  const size = 240, cx = size/2, cy = size/2, r = 96;
   const prediction = estimateCycle();
 
   if (!prediction.cycleLen) {
-    wrap.innerHTML = `<svg width="${size}" height="${size}"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#382a44" stroke-width="16"/></svg>`;
+    wrap.innerHTML = `<svg width="${size}" height="${size}"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#382a44" stroke-width="18"/>
+      <text x="${cx}" y="${cy+7}" text-anchor="middle" font-size="30" fill="#E8607A">♥</text></svg>`;
     return;
   }
 
@@ -985,16 +1220,37 @@ function renderCircle(){
 
   const dayToAngle = (day) => (day / cycleLen) * 360;
 
+  // Colored band segments (Period / Follicular / Fertile window / Two-week wait)
   const segments = [
     { from: 0, to: periodLen, color: 'var(--period)' },
     { from: periodLen, to: fertileStartDay, color: 'var(--follicular)' },
     { from: fertileStartDay, to: fertileEndDay, color: 'var(--fertile)' },
     { from: fertileEndDay, to: cycleLen, color: 'var(--luteal)' }
   ];
-
   let paths = segments.filter(s => s.to > s.from).map(s =>
-    `<path d="${arcPath(cx, cy, r, dayToAngle(s.from), dayToAngle(s.to))}" fill="none" stroke="${s.color}" stroke-width="16" stroke-linecap="butt"/>`
+    `<path d="${arcPath(cx, cy, r, dayToAngle(s.from), dayToAngle(s.to))}" fill="none" stroke="${s.color}" stroke-width="18" stroke-linecap="butt"/>`
   ).join('');
+
+  // Curved labels following the ring, like "Period / Fertile window / Two-week wait"
+  const labelSegments = [
+    { from: 0, to: periodLen, text: 'PERIOD', id: 'lbl-period' },
+    { from: fertileStartDay, to: fertileEndDay, text: 'FERTILE WINDOW', id: 'lbl-fertile' },
+    { from: fertileEndDay, to: cycleLen, text: 'TWO-WEEK WAIT', id: 'lbl-luteal' }
+  ];
+  let labelDefs = '', labelUses = '';
+  labelSegments.filter(s => s.to > s.from).forEach(s => {
+    const startA = dayToAngle(s.from), endA = dayToAngle(s.to);
+    const mid = ((startA + endA) / 2) % 360;
+    const bottomHalf = mid > 90 && mid < 270;
+    const a1 = bottomHalf ? endA : startA;
+    const a2 = bottomHalf ? startA : endA;
+    const p1 = polarPoint(cx, cy, r, a1);
+    const p2 = polarPoint(cx, cy, r, a2);
+    const largeArc = Math.abs(endA - startA) <= 180 ? 0 : 1;
+    const sweep = bottomHalf ? 0 : 1;
+    labelDefs += `<path id="${s.id}" d="M ${p1.x} ${p1.y} A ${r} ${r} 0 ${largeArc} ${sweep} ${p2.x} ${p2.y}" fill="none"/>`;
+    labelUses += `<text font-size="9.5" font-weight="700" letter-spacing="1" fill="#12241F"><textPath href="#${s.id}" startOffset="50%" text-anchor="middle">${s.text}</textPath></text>`;
+  });
 
   const today = todayKey();
   const cycleDayNum = Math.max(0, Math.min(cycleLen, daysBetween(todayKey(prediction.lastStart), today)));
@@ -1002,17 +1258,18 @@ function renderCircle(){
   const markerPos = polarPoint(cx, cy, r, markerAngle);
   const ovPos = polarPoint(cx, cy, r, dayToAngle(ovDay));
 
-  const centerLabel = prediction.nextStart
-    ? `<text x="${cx}" y="${cy-6}" text-anchor="middle" font-size="26" font-weight="700" fill="#F3EAF0">Day ${cycleDayNum+1}</text>
-       <text x="${cx}" y="${cy+18}" text-anchor="middle" font-size="11" fill="#B7A6C2">of ~${cycleLen}-day cycle</text>`
-    : '';
+  const isFertileNow = today >= todayKey(prediction.fertileStart) && today <= todayKey(prediction.fertileEnd);
+  const centerText = isFertileNow ? 'Fertile window' : (inPeriod(today) ? 'On your period' : '');
 
   wrap.innerHTML = `
     <svg width="${size}" height="${size}">
+      <defs>${labelDefs}</defs>
       ${paths}
+      ${labelUses}
       <circle cx="${ovPos.x}" cy="${ovPos.y}" r="4" fill="#49A99C" />
       <circle cx="${markerPos.x}" cy="${markerPos.y}" r="7" fill="#D8A94D" stroke="#241A2C" stroke-width="2" />
-      ${centerLabel}
+      <text x="${cx}" y="${cy-2}" text-anchor="middle" font-size="26" fill="#E8607A">♥</text>
+      ${centerText ? `<text x="${cx}" y="${cy+22}" text-anchor="middle" font-size="10" fill="#B7A6C2">${centerText}</text>` : ''}
     </svg>`;
 }
 
@@ -1373,6 +1630,9 @@ selectFlow('none');
 history.pushState({ app: true }, '', location.href);
 window.addEventListener('popstate', () => {
   history.pushState({ app: true }, '', location.href);
+  const midOnboarding = document.getElementById('panel-onboarding').classList.contains('active');
+  const midVerify = document.getElementById('panel-verify').classList.contains('active');
+  if (midOnboarding || midVerify) return; // stay put — nothing meaningful to "go back" to yet
   if (document.getElementById('shell').classList.contains('active')) {
     showTab('dashboard');
   } else {
