@@ -297,11 +297,7 @@
 
     <!-- ============ DASHBOARD TAB ============ -->
     <div class="tabpanel" id="panel-dashboard">
-      <h1 id="dashboard-greeting" style="font-size:1.3rem; margin-bottom:6px;">Welcome</h1>
-      <div class="mode-banner">
-        <div><span class="mode-label">Mode: </span><span class="mode-value" id="mode-value">Cycle tracking</span></div>
-        <button class="change-link" onclick="showTab('profile')">Change</button>
-      </div>
+      <h1 id="dashboard-greeting" style="font-size:1.3rem; margin-bottom:14px;">Welcome</h1>
 
       <div class="card" id="last-period-banner" style="text-align:center; font-weight:700; font-size:1.05rem;">
         No period logged yet
@@ -452,6 +448,7 @@
       <input id="prof-weight" type="number" />
 
       <h3>Mode</h3>
+      <p class="sub" style="margin:0 0 10px; font-size:.82rem;">Currently: <span id="mode-value" style="color:var(--gold); font-weight:700;">Cycle tracking</span></p>
       <div class="segment" id="mode-segment">
         <button data-val="cycle" onclick="selectMode('cycle')">Cycle</button>
         <button data-val="ttc" onclick="selectMode('ttc')">Trying to conceive</button>
@@ -827,7 +824,7 @@ function renderOnboardStep(){
   if (step.type === 'choice') {
     html += step.options.map(o => `
       <button class="onboard-option${onboardAnswers[step.field] === o.value ? ' selected' : ''}"
-        onclick="onboardChoose('${step.field}', ${JSON.stringify(o.value)})">${o.label}</button>
+        onclick="onboardChoose('${step.field}', '${o.value}')">${o.label}</button>
     `).join('');
   } else if (step.type === 'number') {
     html += `
@@ -1203,11 +1200,11 @@ function arcPath(cx, cy, r, startAngle, endAngle){
 
 function renderCircle(){
   const wrap = document.getElementById('circle-wrap');
-  const size = 240, cx = size/2, cy = size/2, r = 96;
+  const size = 240, cx = size/2, cy = size/2, r = 86;
   const prediction = estimateCycle();
 
   if (!prediction.cycleLen) {
-    wrap.innerHTML = `<svg width="${size}" height="${size}"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#382a44" stroke-width="18"/>
+    wrap.innerHTML = `<svg width="${size}" height="${size}"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#382a44" stroke-width="30"/>
       <text x="${cx}" y="${cy+7}" text-anchor="middle" font-size="30" fill="#E8607A">♥</text></svg>`;
     return;
   }
@@ -1221,14 +1218,15 @@ function renderCircle(){
   const dayToAngle = (day) => (day / cycleLen) * 360;
 
   // Colored band segments (Period / Follicular / Fertile window / Two-week wait)
+  // Vivid, clearly distinct colors so each phase reads at a glance.
   const segments = [
-    { from: 0, to: periodLen, color: 'var(--period)' },
-    { from: periodLen, to: fertileStartDay, color: 'var(--follicular)' },
-    { from: fertileStartDay, to: fertileEndDay, color: 'var(--fertile)' },
-    { from: fertileEndDay, to: cycleLen, color: 'var(--luteal)' }
+    { from: 0, to: periodLen, color: '#E8607A' },
+    { from: periodLen, to: fertileStartDay, color: '#8B7FD6' },
+    { from: fertileStartDay, to: fertileEndDay, color: '#3FBFAE' },
+    { from: fertileEndDay, to: cycleLen, color: '#F0A93D' }
   ];
   let paths = segments.filter(s => s.to > s.from).map(s =>
-    `<path d="${arcPath(cx, cy, r, dayToAngle(s.from), dayToAngle(s.to))}" fill="none" stroke="${s.color}" stroke-width="18" stroke-linecap="butt"/>`
+    `<path d="${arcPath(cx, cy, r, dayToAngle(s.from), dayToAngle(s.to))}" fill="none" stroke="${s.color}" stroke-width="30" stroke-linecap="butt"/>`
   ).join('');
 
   // Curved labels following the ring, like "Period / Fertile window / Two-week wait"
@@ -1388,22 +1386,24 @@ function renderDashboard(){
   };
 
   cycleCardsEl.innerHTML = `
-    <div class="stat-card" style="background:#3a2340;" onclick="showTab('calendar')">
+    <div class="stat-card" style="background:#3a2340;" onclick="showDetail('Cycle day', 'You are on day ${cycleDayNum} of your cycle, counted from your last period start (${lastPeriod.start}). Current phase: <b>${phase}</b>. ${phaseExplain[phase] || ''}')">
       <div class="stat-label">Cycle day</div><div class="stat-value">Day ${cycleDayNum}</div><div class="stat-sub">${phase}</div>
     </div>
-    <div class="stat-card" style="background:#3a3350;" onclick="showTab('calendar')">
-      <div class="stat-label">Period countdown</div><div class="stat-value">${periodCountdown !== null ? periodCountdown + 'd' : '—'}</div><div class="stat-sub">Tap to see calendar</div>
+    <div class="stat-card" style="background:#3a3350;" onclick="showDetail('Period countdown', '${periodCountdown !== null ? 'Your next period is predicted in ' + periodCountdown + ' day(s), based on a ' + cycleLenForCard(prediction) + '-day cycle from your last period start.' : 'Log at least one period to get a prediction.'}')">
+      <div class="stat-label">Period countdown</div><div class="stat-value">${periodCountdown !== null ? periodCountdown + 'd' : '—'}</div>
     </div>
-    <div class="stat-card" style="background:#1F4440;" onclick="showTab('calendar')">
-      <div class="stat-label">Ovulation date</div><div class="stat-value" style="font-size:1rem;">${prediction.ovulation ? todayKey(prediction.ovulation) : '—'}</div><div class="stat-sub">Tap to see calendar</div>
+    <div class="stat-card" style="background:#1F4440;" onclick="showDetail('Ovulation date', '${prediction.ovulation ? 'Estimated ovulation day: ' + todayKey(prediction.ovulation) + '. This is usually the single most fertile day of your cycle.' : 'Log a period to estimate this.'}')">
+      <div class="stat-label">Ovulation date</div><div class="stat-value" style="font-size:1rem;">${prediction.ovulation ? todayKey(prediction.ovulation) : '—'}</div>
     </div>
-    <div class="stat-card" style="background:#4a3350;" onclick="showTab('calendar')">
-      <div class="stat-label">Cycle regularity</div><div class="stat-value" style="font-size:1rem;">${regularityLabel(prediction.cycleLens)}</div><div class="stat-sub">Tap to see calendar</div>
+    <div class="stat-card" style="background:#4a3350;" onclick="showDetail('Pregnancy chance', 'Estimated chance right now: <b>${chanceLabel}</b>${chanceExtra}. This reflects where you are in your cycle — it is not a test result, a diagnosis, or a guaranteed method of contraception.')">
+      <div class="stat-label">Pregnancy chance</div><div class="stat-value" style="font-size:1.1rem;">${chanceLabel}</div>
     </div>
   `;
 
-  tipEl.innerHTML = `${pickTip(phase, mode, recentSymptoms)}<br><br><b>Pregnancy chance:</b> ${chanceLabel}${chanceExtra}`;
+  tipEl.innerHTML = pickTip(phase, mode, recentSymptoms);
 }
+
+function cycleLenForCard(prediction){ return prediction.cycleLen || 28; }
 
 /* ---------------- Calendar ---------------- */
 
