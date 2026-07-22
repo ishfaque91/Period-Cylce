@@ -299,10 +299,6 @@
     <div class="tabpanel" id="panel-dashboard">
       <h1 id="dashboard-greeting" style="font-size:1.3rem; margin-bottom:14px;">Welcome</h1>
 
-      <div class="card" id="last-period-banner" style="text-align:center; font-weight:700; font-size:1.05rem;">
-        No period logged yet
-      </div>
-
       <button class="btn-primary" onclick="showTab('calendar'); setTimeout(openPeriodForm, 50);">Log period</button>
 
       <div class="circle-wrap" id="circle-wrap" onclick="showTab('calendar')" style="cursor:pointer;"></div>
@@ -312,10 +308,6 @@
 
       <div class="tip-card" id="dashboard-tip">Log a period to get started.</div>
       <p class="disclaimer">Predictions and pregnancy-chance estimates are approximations based on your logged data — not a medical diagnosis or a guaranteed method of contraception. Consult a healthcare provider for personal medical advice.</p>
-
-      <h3>Trends</h3>
-      <div class="mini-chart"><canvas id="chart-cyclelen"></canvas></div>
-      <div class="mini-chart"><canvas id="chart-mood"></canvas></div>
     </div>
 
     <!-- Detail modal, opened by tapping a dashboard card -->
@@ -329,7 +321,7 @@
       </div>
     </div>
 
-    <!-- ============ CALENDAR TAB ============ -->
+    <!-- ============ CALENDAR TAB (reached via the circle or "Log period" — no separate bottom-nav icon) ============ -->
     <div class="tabpanel" id="panel-calendar">
       <button class="btn-primary" onclick="openPeriodForm()">Log a period</button>
 
@@ -479,6 +471,26 @@
       <div class="msg error" id="account-msg" style="display:none;"></div>
     </div>
 
+    <!-- ============ REPORTS TAB ============ -->
+    <div class="tabpanel" id="panel-reports">
+      <p class="sub" style="margin-bottom:16px;">Choose a date range, then generate a summary from your logged data.</p>
+      <label for="report-from">From</label>
+      <input id="report-from" type="date" />
+      <label for="report-to">To</label>
+      <input id="report-to" type="date" />
+      <button class="btn-primary" onclick="generateReport()">Generate report</button>
+
+      <div id="report-analyzing" style="display:none; text-align:center; margin-top:24px;">
+        <div class="analyzing-ring" id="report-analyzing-ring"><div class="analyzing-ring-inner"><span id="report-analyzing-pct">0%</span></div></div>
+        <div style="font-weight:600;">Analyzing your data…</div>
+      </div>
+
+      <div id="report-results" style="display:none; margin-top:22px;">
+        <button class="btn-outline" onclick="exportReportPDF()">Export report as PDF</button>
+        <div id="report-sections" style="margin-top:16px;"></div>
+      </div>
+    </div>
+
     <!-- ============ INTERCOURSE TAB (kept separate — used only to help estimate/avoid pregnancy) ============ -->
     <div class="tabpanel" id="panel-intercourse">
       <p class="sub" style="margin-bottom:14px;">Used only to help estimate or avoid pregnancy — kept separate from your daily log.</p>
@@ -513,9 +525,9 @@
 
     <nav class="bottomnav">
       <button class="active" data-tab="dashboard" onclick="showTab('dashboard')"><span class="icon">🏠</span>Dashboard</button>
-      <button data-tab="calendar" onclick="showTab('calendar')"><span class="icon">📅</span>Calendar</button>
       <button data-tab="log" onclick="showTab('log')"><span class="icon">📝</span>Log</button>
       <button data-tab="intercourse" onclick="showTab('intercourse')"><span class="icon">💗</span>Intimacy</button>
+      <button data-tab="reports" onclick="showTab('reports')"><span class="icon">📊</span>Reports</button>
       <button data-tab="profile" onclick="showTab('profile')"><span class="icon">👤</span>Profile</button>
     </nav>
   </div>
@@ -526,6 +538,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 
 /* ============================================================
@@ -575,8 +588,6 @@ let selectedMode = 'cycle';
 let viewMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let unsubPeriods = null;
 let unsubLogs = null;
-let chartCycleLen = null;
-let chartMood = null;
 
 /* ---------------- Baby size lookup (weeks 4-42) ---------------- */
 const BABY_SIZES = {
@@ -603,8 +614,8 @@ function showTab(tab){
   document.querySelectorAll('nav.bottomnav button').forEach(b => b.classList.remove('active'));
   const navBtn = document.querySelector(`nav.bottomnav button[data-tab="${tab}"]`);
   if (navBtn) navBtn.classList.add('active');
-  localStorage.setItem('femovia_last_tab', tab);
-  const titles = { dashboard:'Dashboard', calendar:'Calendar', log:'Log entry', intercourse:'Intimacy', profile:'Profile' };
+  if (tab !== 'calendar') localStorage.setItem('femovia_last_tab', tab);
+  const titles = { dashboard:'Dashboard', calendar:'Calendar', log:'Log entry', intercourse:'Intimacy', reports:'Reports', profile:'Profile' };
   document.getElementById('topbar-title').textContent = titles[tab] || 'Femovia';
   document.querySelector('nav.bottomnav').style.display = 'flex';
   if (tab === 'log' && !document.getElementById('log-date').value) {
@@ -612,8 +623,9 @@ function showTab(tab){
     loadLogForDate();
   }
   if (tab === 'profile') { loadProfile(); }
-  if (tab === 'dashboard') { renderDashboard(); renderTrends(); }
+  if (tab === 'dashboard') { renderDashboard(); }
   if (tab === 'intercourse') { renderIntercourseCalendar(); renderIntercourseList(); document.getElementById('ic-date').max = todayKey(); }
+  if (tab === 'reports') { initReportDateRange(); }
 }
 window.showTab = showTab;
 
@@ -787,6 +799,10 @@ const ONBOARD_STEPS = [
   {
     id: 'period', field: 'lastPeriodDate', type: 'calendar',
     question: (a) => a.mode === 'pregnant' ? 'When did your last period start?' : 'Tap the day your last period started'
+  },
+  {
+    id: 'periodLen', field: 'periodDuration', type: 'number',
+    question: 'How many days does your period usually last?', suffix: 'days'
   }
 ];
 
@@ -829,6 +845,7 @@ function renderOnboardStep(){
   } else if (step.type === 'number') {
     html += `
       <input id="onboard-input" type="number" inputmode="decimal" placeholder="e.g. 60" value="${onboardAnswers[step.field] || ''}" style="font-size:1.4rem; text-align:center; padding:18px;" />
+      ${step.suffix ? `<p class="sub" style="text-align:center; margin:-10px 0 14px;">${step.suffix}</p>` : ''}
       <button class="btn-primary" style="margin-top:10px;" onclick="onboardSubmitInput('${step.field}', 'number')">Next</button>
     `;
   } else if (step.type === 'date') {
@@ -938,7 +955,11 @@ function runOnboardAnalyzing(){
 
 async function finishOnboarding(){
   const uid = currentUser.uid;
-  const profileUpdate = { onboardingComplete: true, updatedAt: new Date().toISOString() };
+  const periodLen = onboardAnswers.periodDuration || 5;
+  const profileUpdate = {
+    onboardingComplete: true, updatedAt: new Date().toISOString(),
+    cyclePrefs: { avgCycleLen: 28, avgPeriodLen: periodLen, lutealPhaseLen: 14 }
+  };
   if (onboardAnswers.mode) profileUpdate.mode = onboardAnswers.mode;
   if (onboardAnswers.dob) profileUpdate.dob = onboardAnswers.dob;
   if (onboardAnswers.heightCm) profileUpdate.heightCm = onboardAnswers.heightCm;
@@ -950,8 +971,9 @@ async function finishOnboarding(){
   // A logged period start date also becomes the first calendar entry,
   // unless the person is just tracking a pregnancy (handled via lmpDate instead).
   if (onboardAnswers.lastPeriodDate && onboardAnswers.mode !== 'pregnant') {
+    const end = todayKey(addDays(onboardAnswers.lastPeriodDate, periodLen - 1));
     await db.collection('users').doc(uid).collection('periods').add({
-      start: onboardAnswers.lastPeriodDate, end: null
+      start: onboardAnswers.lastPeriodDate, end
     });
   }
 
@@ -1306,18 +1328,11 @@ function renderDashboard(){
   const cycleCardsEl = document.getElementById('dashboard-cycle-cards');
   const pregCardsEl = document.getElementById('dashboard-pregnancy-cards');
   const tipEl = document.getElementById('dashboard-tip');
-  const bannerEl = document.getElementById('last-period-banner');
   if (!cycleCardsEl) return;
 
   const mode = profileCache.mode || 'cycle';
   const sortedAll = [...periodsCache].sort((a,b) => new Date(b.start) - new Date(a.start));
   const lastLogged = sortedAll[0];
-
-  if (bannerEl) {
-    bannerEl.innerHTML = lastLogged
-      ? `Last period: <span style="color:var(--rose);">${lastLogged.start}${lastLogged.end ? ' – ' + lastLogged.end : ' (ongoing)'}</span>`
-      : `No period logged yet — tap "Log period" below to start`;
-  }
 
   if (mode === 'pregnant') {
     cycleCardsEl.style.display = 'none';
@@ -1593,31 +1608,249 @@ window.saveLog = async function(){
 
 /* ---------------- Trends (charts) ---------------- */
 
-function renderTrends(){
-  const prediction = estimateCycle();
-  const cycleLens = (prediction.cycleLens || []).slice().reverse();
-  const ctx1 = document.getElementById('chart-cyclelen');
-  if (chartCycleLen) chartCycleLen.destroy();
-  if (ctx1 && typeof Chart !== 'undefined') {
-    chartCycleLen = new Chart(ctx1, {
-      type: 'bar',
-      data: { labels: cycleLens.map((_,i) => 'Cycle ' + (i+1)), datasets: [{ label: 'Cycle length (days)', data: cycleLens, backgroundColor: '#E8607A' }] },
-      options: { plugins: { legend: { display: false }, title: { display: true, text: 'Recent cycle lengths', color: '#F3EAF0' } }, scales: { x: { ticks: { color:'#B7A6C2' } }, y: { ticks: { color:'#B7A6C2' } } } }
-    });
-  }
+/* ---------------- Reports ---------------- */
 
-  const last14 = [...logsCache].filter(l => l.mood).sort((a,b) => new Date(a.date) - new Date(b.date)).slice(-14);
-  const moodScale = { great: 5, okay: 4, low: 2, irritable: 1, anxious: 1 };
-  const ctx2 = document.getElementById('chart-mood');
-  if (chartMood) chartMood.destroy();
-  if (ctx2 && typeof Chart !== 'undefined') {
-    chartMood = new Chart(ctx2, {
-      type: 'line',
-      data: { labels: last14.map(l => l.date.slice(5)), datasets: [{ label: 'Mood', data: last14.map(l => moodScale[l.mood] || 3), borderColor: '#49A99C', tension: 0.3 }] },
-      options: { plugins: { legend: { display: false }, title: { display: true, text: 'Mood (last 14 logged days)', color: '#F3EAF0' } }, scales: { x: { ticks: { color:'#B7A6C2' } }, y: { min:0, max:6, ticks: { color:'#B7A6C2' } } } }
-    });
-  }
+let reportChartInstances = [];
+
+function initReportDateRange(){
+  const fromEl = document.getElementById('report-from');
+  const toEl = document.getElementById('report-to');
+  if (fromEl.value && toEl.value) return; // keep whatever the person already picked
+  const today = todayKey();
+  const threeMonthsAgo = todayKey(addDays(today, -90));
+  fromEl.value = threeMonthsAgo;
+  fromEl.max = today;
+  toEl.value = today;
+  toEl.max = today;
 }
+
+function inRange(dateStr, from, to){ return dateStr >= from && dateStr <= to; }
+
+function computeReportStats(from, to){
+  const lutealLen = (profileCache.cyclePrefs && profileCache.cyclePrefs.lutealPhaseLen) || 14;
+  const sortedAsc = [...periodsCache].sort((a,b) => new Date(a.start) - new Date(b.start));
+
+  const cycleLens = [], ovulationList = [], fertileList = [], periodDurations = [];
+  sortedAsc.forEach((p, i) => {
+    if (p.end) periodDurations.push({ date: p.start, duration: daysBetween(p.start, p.end) + 1 });
+    if (i > 0) {
+      const prev = sortedAsc[i-1];
+      const len = daysBetween(prev.start, p.start);
+      cycleLens.push({ date: p.start, length: len });
+      const ov = addDays(p.start, -lutealLen);
+      const fStart = addDays(ov, -5), fEnd = addDays(ov, 1);
+      ovulationList.push({ date: p.start, ovulation: todayKey(ov) });
+      fertileList.push({ date: p.start, start: todayKey(fStart), end: todayKey(fEnd) });
+    }
+  });
+
+  const filterByDate = (arr) => arr.filter(x => inRange(x.date, from, to));
+  const cycleLensF = filterByDate(cycleLens);
+  const periodDurF = filterByDate(periodDurations);
+  const ovulationF = filterByDate(ovulationList);
+  const fertileF = filterByDate(fertileList);
+
+  const logsInRange = logsCache.filter(l => inRange(l.date, from, to));
+
+  const moodCounts = {};
+  logsInRange.forEach(l => { if (l.mood) moodCounts[l.mood] = (moodCounts[l.mood]||0)+1; });
+
+  const symptomCounts = {};
+  logsInRange.forEach(l => (l.symptoms||[]).forEach(s => symptomCounts[s] = (symptomCounts[s]||0)+1));
+
+  const painSeries = logsInRange.filter(l => l.painScore != null).map(l => ({ date: l.date, value: l.painScore })).sort((a,b)=>a.date.localeCompare(b.date));
+  const flowCounts = {};
+  logsInRange.forEach(l => { if (l.flow && l.flow !== 'none') flowCounts[l.flow] = (flowCounts[l.flow]||0)+1; });
+
+  const intercourseEntries = logsInRange.filter(l => l.intercourseType && l.intercourseType !== 'none');
+  const intercourseCounts = {};
+  intercourseEntries.forEach(l => intercourseCounts[l.intercourseType] = (intercourseCounts[l.intercourseType]||0)+1);
+
+  const bbtSeries = logsInRange.filter(l => l.basalTemp != null).map(l => ({ date: l.date, value: l.basalTemp })).sort((a,b)=>a.date.localeCompare(b.date));
+  const weightSeries = logsInRange.filter(l => l.weightKg != null).map(l => ({ date: l.date, value: l.weightKg })).sort((a,b)=>a.date.localeCompare(b.date));
+  const sleepSeries = logsInRange.filter(l => l.sleepHrs != null).map(l => ({ date: l.date, value: l.sleepHrs })).sort((a,b)=>a.date.localeCompare(b.date));
+
+  return {
+    from, to, cycleLensF, periodDurF, ovulationF, fertileF,
+    moodCounts, symptomCounts, painSeries, flowCounts,
+    intercourseEntries, intercourseCounts, bbtSeries, weightSeries, sleepSeries
+  };
+}
+
+function buildHealthInsights(stats){
+  const insights = [];
+  if (stats.cycleLensF.length >= 2) {
+    insights.push(`Your cycle regularity over this period: <b>${regularityLabel(stats.cycleLensF.map(c => c.length))}</b>.`);
+  }
+  if (stats.periodDurF.length) {
+    const avg = (stats.periodDurF.reduce((a,b)=>a+b.duration,0) / stats.periodDurF.length).toFixed(1);
+    insights.push(`Average period length: <b>${avg} days</b>.`);
+  }
+  const topSymptom = Object.entries(stats.symptomCounts).sort((a,b)=>b[1]-a[1])[0];
+  if (topSymptom) insights.push(`Most frequently logged symptom: <b>${topSymptom[0]}</b> (${topSymptom[1]} times).`);
+  if (stats.painSeries.length) {
+    const avgPain = (stats.painSeries.reduce((a,b)=>a+b.value,0) / stats.painSeries.length).toFixed(1);
+    insights.push(`Average pain level: <b>${avgPain} / 10</b>.`);
+  }
+  const topMood = Object.entries(stats.moodCounts).sort((a,b)=>b[1]-a[1])[0];
+  if (topMood) insights.push(`Most frequently logged mood: <b>${topMood[0]}</b>.`);
+  if (!insights.length) insights.push('Log more data over time to unlock personalized insights here.');
+  return insights;
+}
+
+function pregnancyChanceSummaryText(){
+  const prediction = estimateCycle();
+  const today = todayKey();
+  const mode = profileCache.mode || 'cycle';
+  if (mode === 'pregnant') return 'You are currently tracking a pregnancy, so a pregnancy-chance estimate does not apply.';
+  if (periodsCache.length === 0) return 'Log a period to enable a pregnancy-chance estimate.';
+  let phase = 'Follicular phase', chance = 'Low';
+  if (inPeriod(today)) { phase = 'Menstrual phase'; chance = 'Very low'; }
+  else if (prediction.ovulation && today === todayKey(prediction.ovulation)) { phase = 'Ovulation'; chance = 'Highest'; }
+  else if (prediction.fertileStart && today >= todayKey(prediction.fertileStart) && today <= todayKey(prediction.fertileEnd)) { phase = 'Fertile window'; chance = 'Elevated'; }
+  return `You are currently in your <b>${phase}</b>. Estimated pregnancy chance right now: <b>${chance}</b>. This is an estimate from your cycle data, not a diagnosis or guaranteed method of contraception.`;
+}
+
+function reportListHTML(items, emptyText){
+  if (!items.length) return `<p class="sub">${emptyText}</p>`;
+  return `<div>${items.join('')}</div>`;
+}
+
+window.generateReport = function(){
+  const from = document.getElementById('report-from').value;
+  const to = document.getElementById('report-to').value;
+  if (!from || !to || from > to) { alert('Please choose a valid date range.'); return; }
+
+  document.getElementById('report-results').style.display = 'none';
+  document.getElementById('report-analyzing').style.display = 'block';
+  const ring = document.getElementById('report-analyzing-ring');
+  const pctEl = document.getElementById('report-analyzing-pct');
+  let pct = 0;
+  const timer = setInterval(() => {
+    pct = Math.min(100, pct + Math.round(4 + Math.random() * 10));
+    ring.style.background = `conic-gradient(var(--rose) ${pct * 3.6}deg, var(--panel-2) 0)`;
+    pctEl.textContent = pct + '%';
+    if (pct >= 100) {
+      clearInterval(timer);
+      setTimeout(() => renderReport(from, to), 300);
+    }
+  }, 80);
+};
+
+function renderReport(from, to){
+  const stats = computeReportStats(from, to);
+  reportChartInstances.forEach(c => c.destroy());
+  reportChartInstances = [];
+
+  const sections = [];
+
+  sections.push(`<h3>Cycle length trends</h3><div class="mini-chart"><canvas id="rc-cyclelen"></canvas></div>`);
+  sections.push(`<h3>Period duration trends</h3><div class="mini-chart"><canvas id="rc-perioddur"></canvas></div>`);
+
+  sections.push(`<h3>Ovulation history</h3>` + reportListHTML(
+    stats.ovulationF.map(o => `<div class="card" style="padding:12px 16px;">Cycle ending ${o.date} — estimated ovulation: <b>${o.ovulation}</b></div>`),
+    'No ovulation estimates in this range yet.'
+  ));
+
+  sections.push(`<h3>Fertility window history</h3>` + reportListHTML(
+    stats.fertileF.map(f => `<div class="card" style="padding:12px 16px;">Cycle ending ${f.date} — fertile window: <b>${f.start} to ${f.end}</b></div>`),
+    'No fertile window estimates in this range yet.'
+  ));
+
+  sections.push(`<h3>Mood analysis</h3><div class="mini-chart"><canvas id="rc-mood"></canvas></div>`);
+  sections.push(`<h3>Symptoms analysis</h3><div class="mini-chart"><canvas id="rc-symptoms"></canvas></div>`);
+  sections.push(`<h3>Pain level analysis</h3><div class="mini-chart"><canvas id="rc-pain"></canvas></div>`);
+  sections.push(`<h3>Flow analysis</h3><div class="mini-chart"><canvas id="rc-flow"></canvas></div>`);
+
+  sections.push(`<h3>Intercourse history</h3>` + reportListHTML(
+    Object.entries(stats.intercourseCounts).map(([type,count]) => `<div class="card" style="padding:12px 16px;">${type}: <b>${count}</b></div>`),
+    'No intercourse dates logged in this range.'
+  ));
+
+  sections.push(`<h3>Pregnancy chance summary</h3><div class="tip-card">${pregnancyChanceSummaryText()}</div>`);
+
+  sections.push(`<h3>Basal body temperature</h3><div class="mini-chart"><canvas id="rc-bbt"></canvas></div>`);
+  sections.push(`<h3>Weight trend</h3><div class="mini-chart"><canvas id="rc-weight"></canvas></div>`);
+  sections.push(`<h3>Sleep trend</h3><div class="mini-chart"><canvas id="rc-sleep"></canvas></div>`);
+
+  const cycleLensOnly = stats.cycleLensF.map(c => c.length);
+  sections.push(`<h3>Cycle regularity score</h3><div class="tip-card">${regularityLabel(cycleLensOnly)}${cycleLensOnly.length ? ' (based on ' + cycleLensOnly.length + ' logged cycle(s) in this range)' : ''}</div>`);
+
+  sections.push(`<h3>Health insights</h3><div class="tip-card">${buildHealthInsights(stats).join('<br><br>')}</div>`);
+  sections.push(`<p class="disclaimer">This report summarizes your logged data for personal reference. It is not a medical diagnosis — share it with a healthcare provider if useful, but do not rely on it as clinical advice.</p>`);
+
+  document.getElementById('report-sections').innerHTML = sections.join('');
+  document.getElementById('report-analyzing').style.display = 'none';
+  document.getElementById('report-results').style.display = 'block';
+
+  const mk = (id, type, labels, data, label, color) => {
+    const el = document.getElementById(id);
+    if (!el || typeof Chart === 'undefined') return;
+    const chart = new Chart(el, {
+      type, data: { labels, datasets: [{ label, data, backgroundColor: color, borderColor: color, tension: .3 }] },
+      options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color:'#B7A6C2' } }, y: { ticks: { color:'#B7A6C2' } } } }
+    });
+    reportChartInstances.push(chart);
+  };
+
+  mk('rc-cyclelen', 'bar', stats.cycleLensF.map(c=>c.date.slice(5)), stats.cycleLensF.map(c=>c.length), 'Cycle length (days)', '#E8607A');
+  mk('rc-perioddur', 'bar', stats.periodDurF.map(p=>p.date.slice(5)), stats.periodDurF.map(p=>p.duration), 'Period length (days)', '#8B7FD6');
+  mk('rc-mood', 'bar', Object.keys(stats.moodCounts), Object.values(stats.moodCounts), 'Mood frequency', '#3FBFAE');
+  mk('rc-symptoms', 'bar', Object.keys(stats.symptomCounts), Object.values(stats.symptomCounts), 'Symptom frequency', '#D8A94D');
+  mk('rc-pain', 'line', stats.painSeries.map(p=>p.date.slice(5)), stats.painSeries.map(p=>p.value), 'Pain level', '#E8607A');
+  mk('rc-flow', 'bar', Object.keys(stats.flowCounts), Object.values(stats.flowCounts), 'Flow frequency', '#5A3444');
+  mk('rc-bbt', 'line', stats.bbtSeries.map(p=>p.date.slice(5)), stats.bbtSeries.map(p=>p.value), 'Basal body temp (°C)', '#49A99C');
+  mk('rc-weight', 'line', stats.weightSeries.map(p=>p.date.slice(5)), stats.weightSeries.map(p=>p.value), 'Weight (kg)', '#8B7FD6');
+  mk('rc-sleep', 'line', stats.sleepSeries.map(p=>p.date.slice(5)), stats.sleepSeries.map(p=>p.value), 'Sleep (hrs)', '#D8A94D');
+}
+
+window.exportReportPDF = function(){
+  if (typeof window.jspdf === 'undefined') { alert('PDF export is unavailable right now — check your internet connection and try again.'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 40;
+  let y = margin;
+
+  const ensureSpace = (needed) => {
+    if (y + needed > pageHeight - margin) { doc.addPage(); y = margin; }
+  };
+
+  doc.setFontSize(18); doc.text('Femovia — Health Report', margin, y); y += 22;
+  doc.setFontSize(10); doc.setTextColor(120);
+  const from = document.getElementById('report-from').value;
+  const to = document.getElementById('report-to').value;
+  doc.text(`Range: ${from} to ${to}`, margin, y); y += 24;
+  doc.setTextColor(0);
+
+  document.querySelectorAll('#report-sections h3').forEach(h3 => {
+    ensureSpace(60);
+    doc.setFontSize(13); doc.setFont(undefined, 'bold');
+    doc.text(h3.textContent, margin, y); y += 16;
+    doc.setFont(undefined, 'normal'); doc.setFontSize(10);
+
+    const next = h3.nextElementSibling;
+    if (next && next.tagName === 'CANVAS') {
+      try {
+        const imgData = next.toDataURL('image/png', 1.0);
+        const imgWidth = pageWidth - margin*2;
+        const imgHeight = imgWidth * (next.height / next.width);
+        ensureSpace(imgHeight + 10);
+        doc.addImage(imgData, 'PNG', margin, y, imgWidth, imgHeight);
+        y += imgHeight + 18;
+      } catch(e) { /* chart may be empty — skip silently */ }
+    } else if (next) {
+      const text = next.textContent.trim().replace(/\s+/g, ' ');
+      const lines = doc.splitTextToSize(text || 'No data available.', pageWidth - margin*2);
+      ensureSpace(lines.length * 12 + 10);
+      doc.text(lines, margin, y);
+      y += lines.length * 12 + 18;
+    }
+  });
+
+  doc.save('femovia-report.pdf');
+};
 
 selectFlow('none');
 
