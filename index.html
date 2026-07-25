@@ -299,7 +299,15 @@
     <div class="tabpanel" id="panel-dashboard">
       <h1 id="dashboard-greeting" style="font-size:1.3rem; margin-bottom:14px;">Welcome</h1>
 
-      <button class="btn-primary" onclick="showTab('calendar'); setTimeout(openPeriodForm, 50);">Log period</button>
+      <button class="btn-primary" id="dashboard-log-period-btn" onclick="showTab('calendar'); setTimeout(openPeriodForm, 50);">Log period</button>
+
+      <div class="card" id="dashboard-late-banner" style="display:none; border-left:3px solid var(--rose); background:linear-gradient(135deg, var(--panel-2), var(--panel));">
+        <strong style="display:block; margin-bottom:6px;">Your period hasn't been logged yet</strong>
+        <div id="late-banner-text" style="color:var(--text-dim); font-size:.86rem; margin-bottom:12px;"></div>
+        <button class="btn-primary" style="margin-bottom:8px;" onclick="openLatePregnancyForm()">I think I might be pregnant</button>
+        <button class="btn-outline" style="margin-bottom:8px;" onclick="showTab('calendar'); setTimeout(openPeriodForm, 50);">Actually, log my period</button>
+        <button class="btn-ghost" onclick="dismissLateBanner()">Not now</button>
+      </div>
 
       <div class="circle-wrap" id="circle-wrap" onclick="showTab('calendar')" style="cursor:pointer;"></div>
 
@@ -318,6 +326,22 @@
           <button onclick="closeDetail()" style="background:none; color:var(--text-dim); font-size:1.3rem; padding:0;">✕</button>
         </div>
         <div id="detail-modal-body" style="color:var(--text-dim); font-size:.9rem; line-height:1.5;"></div>
+      </div>
+    </div>
+
+    <!-- Late-period → confirm pregnancy modal -->
+    <div id="late-preg-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:50; align-items:flex-end; justify-content:center; animation:modalFade .2s ease;">
+      <div style="background:var(--panel); width:100%; max-width:460px; border-radius:18px 18px 0 0; padding:22px; max-height:80vh; overflow-y:auto; animation:sheetUp .28s cubic-bezier(.2,.8,.3,1);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <strong style="font-size:1.1rem;">Switch to pregnancy tracking?</strong>
+          <button onclick="closeLatePregnancyForm()" style="background:none; color:var(--text-dim); font-size:1.3rem; padding:0;">✕</button>
+        </div>
+        <p class="sub" style="margin:0 0 14px; font-size:.85rem;">A late period doesn't necessarily mean you're pregnant — it can happen for lots of reasons. If you'd like, we can start tracking a pregnancy from the first day of your last period. You can switch back anytime in Profile.</p>
+        <label for="late-preg-lmp">First day of your last period</label>
+        <input id="late-preg-lmp" type="date" />
+        <button class="btn-primary" onclick="confirmSwitchToPregnant()">Start pregnancy tracking</button>
+        <button class="btn-ghost" onclick="closeLatePregnancyForm()">Cancel</button>
+        <div class="msg" id="late-preg-msg" style="display:none;"></div>
       </div>
     </div>
 
@@ -382,31 +406,43 @@
       <label>Symptoms</label>
       <div class="chip-row" id="symptom-chips"></div>
 
-      <label for="log-ovtest">Ovulation test</label>
-      <select id="log-ovtest">
-        <option value="">Not tracked</option>
-        <option value="negative">Negative</option>
-        <option value="positive">Positive</option>
-      </select>
+      <div id="log-fertility-fields">
+        <label for="log-ovtest">Ovulation test</label>
+        <select id="log-ovtest">
+          <option value="">Not tracked</option>
+          <option value="negative">Negative</option>
+          <option value="positive">Positive</option>
+        </select>
 
-      <label for="log-pgtest">Pregnancy test</label>
-      <select id="log-pgtest">
-        <option value="">Not tracked</option>
-        <option value="negative">Negative</option>
-        <option value="positive">Positive</option>
-      </select>
+        <label for="log-pgtest">Pregnancy test</label>
+        <select id="log-pgtest">
+          <option value="">Not tracked</option>
+          <option value="negative">Negative</option>
+          <option value="positive">Positive</option>
+        </select>
 
-      <label for="log-temp">Basal body temp (°C)</label>
-      <input id="log-temp" type="number" step="0.01" placeholder="e.g. 36.5" />
+        <label for="log-temp">Basal body temp (°C)</label>
+        <input id="log-temp" type="number" step="0.01" placeholder="e.g. 36.5" />
 
-      <label for="log-mucus">Cervical mucus</label>
-      <select id="log-mucus">
-        <option value="">Not tracked</option>
-        <option value="dry">Dry</option>
-        <option value="sticky">Sticky</option>
-        <option value="creamy">Creamy</option>
-        <option value="egg-white">Egg-white</option>
-      </select>
+        <label for="log-mucus">Cervical mucus</label>
+        <select id="log-mucus">
+          <option value="">Not tracked</option>
+          <option value="dry">Dry</option>
+          <option value="sticky">Sticky</option>
+          <option value="creamy">Creamy</option>
+          <option value="egg-white">Egg-white</option>
+        </select>
+      </div>
+
+      <div id="log-pregnancy-fields" style="display:none;">
+        <label for="log-kicks">Baby movement / kicks today</label>
+        <select id="log-kicks">
+          <option value="">Not tracked</option>
+          <option value="none">None noticed</option>
+          <option value="some">Some movement</option>
+          <option value="active">Very active</option>
+        </select>
+      </div>
 
       <label for="log-weight">Weight (kg)</label>
       <input id="log-weight" type="number" step="0.1" />
@@ -483,7 +519,7 @@
 
     <!-- ============ INTERCOURSE TAB (kept separate — used only to help estimate/avoid pregnancy) ============ -->
     <div class="tabpanel" id="panel-intercourse">
-      <p class="sub" style="margin-bottom:14px;">Used only to help estimate or avoid pregnancy — kept separate from your daily log.</p>
+      <p class="sub" id="intimacy-sub" style="margin-bottom:14px;">Used only to help estimate or avoid pregnancy — kept separate from your daily log.</p>
 
       <div class="month-nav">
         <button onclick="shiftIcMonth(-1)">‹</button>
@@ -516,7 +552,7 @@
     <nav class="bottomnav">
       <button class="active" data-tab="dashboard" onclick="showTab('dashboard')"><span class="icon">🏠</span>Dashboard</button>
       <button data-tab="log" onclick="showTab('log')"><span class="icon">📝</span>Log</button>
-      <button data-tab="intercourse" onclick="showTab('intercourse')"><span class="icon">💗</span>Intimacy</button>
+      <button data-tab="intercourse" id="nav-intimacy" onclick="showTab('intercourse')"><span class="icon">💗</span>Intimacy</button>
       <button data-tab="reports" onclick="showTab('reports')"><span class="icon">📊</span>Reports</button>
       <button data-tab="profile" onclick="showTab('profile')"><span class="icon">👤</span>Profile</button>
     </nav>
@@ -591,6 +627,21 @@ const BABY_SIZES = {
   41:'watermelon',42:'watermelon'
 };
 
+/* Computes pregnancy duration/child-development info from a first-day-of-last-period date.
+   Used by both the dashboard and the pregnancy report. */
+function computePregnancyInfo(lmp){
+  if (!lmp) return null;
+  const today = todayKey();
+  const daysPregnant = Math.max(0, daysBetween(lmp, today));
+  const weeksPregnant = Math.floor(daysPregnant / 7);
+  const dayOfWeek = daysPregnant % 7;
+  const dueDate = todayKey(addDays(lmp, 280));
+  const trimester = weeksPregnant < 13 ? 'First' : weeksPregnant < 27 ? 'Second' : 'Third';
+  const babySize = BABY_SIZES[Math.min(42, Math.max(4, weeksPregnant))] || 'growing steadily';
+  const daysToDue = daysBetween(today, dueDate);
+  return { lmp, daysPregnant, weeksPregnant, dayOfWeek, dueDate, trimester, babySize, daysToDue };
+}
+
 function showScreen(id){
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
@@ -599,6 +650,8 @@ function showScreen(id){
 window.showScreen = showScreen;
 
 function showTab(tab){
+  const currentMode = profileCache.mode || 'cycle';
+  if (tab === 'intercourse' && currentMode !== 'ttc' && currentMode !== 'avoid') tab = 'dashboard';
   document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
   document.getElementById('panel-' + tab).classList.add('active');
   document.querySelectorAll('nav.bottomnav button').forEach(b => b.classList.remove('active'));
@@ -792,7 +845,8 @@ const ONBOARD_STEPS = [
   },
   {
     id: 'periodLen', field: 'periodDuration', type: 'number',
-    question: 'How many days does your period usually last?', suffix: 'days'
+    question: 'How many days does your period usually last?', suffix: 'days',
+    showIf: (a) => a.mode !== 'pregnant'
   }
 ];
 
@@ -984,6 +1038,35 @@ window.selectMode = function(mode){
   document.getElementById('pregnancy-fields').style.display = mode === 'pregnant' ? 'block' : 'none';
 };
 
+/* Each mode gets a tailored interface: cycle mode never needs intimacy tracking or
+   pregnancy content; pregnant mode no longer needs cycle/fertility logging or a
+   "log period" prompt; ttc/avoid both need intimacy tracking, but with different framing. */
+function applyModeUI(mode){
+  mode = mode || 'cycle';
+  const showIntimacy = (mode === 'ttc' || mode === 'avoid');
+
+  const navBtn = document.getElementById('nav-intimacy');
+  if (navBtn) navBtn.style.display = showIntimacy ? 'flex' : 'none';
+  // If the person is on the Intimacy tab when their mode no longer supports it, bounce to Dashboard.
+  const icPanel = document.getElementById('panel-intercourse');
+  if (!showIntimacy && icPanel && icPanel.classList.contains('active')) showTab('dashboard');
+
+  const intimacySub = document.getElementById('intimacy-sub');
+  if (intimacySub) {
+    intimacySub.textContent = mode === 'ttc'
+      ? "Log intimacy to track your best chances of conceiving — kept separate from your daily log."
+      : "Log intimacy to help estimate and reduce pregnancy risk — kept separate from your daily log.";
+  }
+
+  const logPeriodBtn = document.getElementById('dashboard-log-period-btn');
+  if (logPeriodBtn) logPeriodBtn.style.display = mode === 'pregnant' ? 'none' : 'block';
+
+  const fertilityFields = document.getElementById('log-fertility-fields');
+  if (fertilityFields) fertilityFields.style.display = mode === 'pregnant' ? 'none' : 'block';
+  const pregnancyLogFields = document.getElementById('log-pregnancy-fields');
+  if (pregnancyLogFields) pregnancyLogFields.style.display = mode === 'pregnant' ? 'block' : 'none';
+}
+
 window.loadProfile = async function(){
   const snap = await db.collection('users').doc(currentUser.uid).get();
   const data = snap.exists ? snap.data() : {};
@@ -994,6 +1077,7 @@ window.loadProfile = async function(){
   document.getElementById('prof-weight').value = data.weightKg || '';
   document.getElementById('prof-lmp').value = data.lmpDate || '';
   selectMode(data.mode || 'cycle');
+  applyModeUI(data.mode || 'cycle');
   const modeNames = { cycle:'Cycle tracking', ttc:'Trying to conceive', avoid:'Avoiding pregnancy', pregnant:'Pregnant' };
   document.getElementById('mode-value').textContent = modeNames[data.mode || 'cycle'];
   const greetEl = document.getElementById('dashboard-greeting');
@@ -1012,6 +1096,7 @@ window.saveProfile = async function(){
   };
   await db.collection('users').doc(currentUser.uid).set(data, { merge: true });
   profileCache = { ...profileCache, ...data };
+  applyModeUI(selectedMode);
   const modeNames = { cycle:'Cycle tracking', ttc:'Trying to conceive', avoid:'Avoiding pregnancy', pregnant:'Pregnant' };
   document.getElementById('mode-value').textContent = modeNames[selectedMode];
   const msgEl = document.getElementById('profile-msg');
@@ -1316,10 +1401,17 @@ function estimatePregnancyChance(){
 function pickTip(phase, mode, recentSymptoms){
   if (mode === 'pregnant') return "Remember to stay hydrated and keep up with your prenatal appointments.";
   if (phase === 'Menstrual phase') return "Stay hydrated and rest if you need it — light movement can help with cramps.";
-  if (phase === 'Fertile window') return mode === 'ttc'
-    ? "You're in your fertile window — this is typically when conception is most likely."
-    : "You're in your fertile window. If avoiding pregnancy, extra caution is worth considering.";
-  if (phase === 'Ovulation') return "Ovulation day — your fertility signs (like cervical mucus) may be most noticeable now.";
+  if (phase === 'Fertile window') {
+    if (mode === 'ttc') return "You're in your fertile window — this is typically when conception is most likely. Consider logging intimacy in the Intimacy tab.";
+    if (mode === 'avoid') return "You're in your fertile window. If avoiding pregnancy, extra caution with contraception is worth considering.";
+    return "You're in your fertile window — the days when pregnancy is most possible.";
+  }
+  if (phase === 'Ovulation') {
+    if (mode === 'ttc') return "Ovulation day — typically the single best day to try to conceive.";
+    if (mode === 'avoid') return "Ovulation day — typically the single highest-risk day if avoiding pregnancy.";
+    return "Ovulation day — your fertility signs (like cervical mucus) may be most noticeable now.";
+  }
+  if (phase === 'Luteal phase' && mode === 'ttc') return "You're in the two-week wait. It's normal for early symptoms to feel similar to pre-period symptoms — a test is more reliable after your period is late.";
   if (recentSymptoms && recentSymptoms.length) return `You've logged ${recentSymptoms[0]} recently — tracking patterns like this can help you and your doctor spot trends.`;
   return "Log your symptoms and mood regularly for more accurate predictions over time.";
 }
@@ -1345,20 +1437,15 @@ function renderDashboard(){
   if (mode === 'pregnant') {
     cycleCardsEl.style.display = 'none';
     pregCardsEl.style.display = 'grid';
+    renderLateBanner(mode);
     const lmp = profileCache.lmpDate;
     if (!lmp) {
       pregCardsEl.innerHTML = `<div class="stat-card" style="grid-column:1/3;">Add the first day of your last period in Profile to see pregnancy tracking.</div>`;
       tipEl.textContent = pickTip(null, 'pregnant');
       return;
     }
-    const today = todayKey();
-    const daysPregnant = Math.max(0, daysBetween(lmp, today));
-    const weeksPregnant = Math.floor(daysPregnant / 7);
-    const dayOfWeek = daysPregnant % 7;
-    const dueDate = todayKey(addDays(lmp, 280));
-    const trimester = weeksPregnant < 13 ? 'First' : weeksPregnant < 27 ? 'Second' : 'Third';
-    const babySize = BABY_SIZES[Math.min(42, Math.max(4, weeksPregnant))] || 'growing steadily';
-    const daysToDue = daysBetween(today, dueDate);
+    const info = computePregnancyInfo(lmp);
+    const { weeksPregnant, dayOfWeek, dueDate, trimester, babySize, daysToDue } = info;
 
     pregCardsEl.innerHTML = `
       <div class="stat-card" onclick="showDetail('Weeks pregnant','You are ${weeksPregnant} weeks and ${dayOfWeek} days pregnant, counting from the first day of your last period (${lmp}).')"><div class="stat-label">Weeks pregnant</div><div class="stat-value">${weeksPregnant}w ${dayOfWeek}d</div></div>
@@ -1373,6 +1460,8 @@ function renderDashboard(){
 
   cycleCardsEl.style.display = 'grid';
   pregCardsEl.style.display = 'none';
+
+  renderLateBanner(mode);
 
   if (periodsCache.length === 0) {
     cycleCardsEl.innerHTML = `<div class="stat-card" style="grid-column:1/3;">Log your first period above to unlock predictions.</div>`;
@@ -1393,9 +1482,6 @@ function renderDashboard(){
   const recentSymptoms = logsCache.filter(l => l.date >= todayKey(addDays(today, -3)) && l.symptoms && l.symptoms.length)
     .flatMap(l => l.symptoms);
 
-  let chanceExtra = '';
-  if (mode === 'avoid') chanceExtra = ' (not a guaranteed contraception method)';
-
   const phaseExplain = {
     'Menstrual phase': 'Your period is happening now, counted from your logged start date.',
     'Follicular phase': 'The time between your period ending and your fertile window beginning.',
@@ -1403,6 +1489,23 @@ function renderDashboard(){
     'Ovulation': 'The estimated day an egg is released — the single most fertile day of your cycle.',
     'Luteal phase': 'The time between ovulation and your next expected period.'
   };
+
+  let extraCards = '';
+  if (mode === 'ttc') {
+    // TTC gets a positive, conception-focused framing instead of a "risk" framing.
+    const ttcLabelMap = { 'Very low': 'Low', 'Low': 'Fair', 'Elevated — period is late': 'Good — period is late', 'Elevated': 'Good' };
+    const ttcLabel = ttcLabelMap[chance.label] || chance.label;
+    extraCards = `
+      <div class="stat-card" style="background:#1F4440;" onclick="showDetail('Chance of conceiving this cycle', '${chance.reason} This is an estimate from your logged data — not a test result or a guarantee.')">
+        <div class="stat-label">Chance of conceiving</div><div class="stat-value" style="font-size:1.1rem;">${chance.phase ? ttcLabel : '—'}</div>
+      </div>`;
+  } else if (mode === 'avoid') {
+    extraCards = `
+      <div class="stat-card" style="background:#4a3350;" onclick="showDetail('Pregnancy risk', '${chance.reason} (not a guaranteed method of contraception) This is an estimate from your logged data — not a test result or a diagnosis.')">
+        <div class="stat-label">Pregnancy risk</div><div class="stat-value" style="font-size:1.1rem;">${chance.label}</div>
+      </div>`;
+  }
+  // Plain "cycle" mode intentionally omits any pregnancy-chance card — it's not relevant to that goal.
 
   cycleCardsEl.innerHTML = `
     <div class="stat-card" style="background:#3a2340;" onclick="showDetail('Cycle day', 'You are on day ${cycleDayNum} of your cycle, counted from your last period start (${lastPeriod.start}). Current phase: <b>${phase}</b>. ${phaseExplain[phase] || ''}')">
@@ -1414,13 +1517,81 @@ function renderDashboard(){
     <div class="stat-card" style="background:#1F4440;" onclick="showDetail('Ovulation date', '${prediction.ovulation ? 'Estimated ovulation day: ' + todayKey(prediction.ovulation) + '. This is usually the single most fertile day of your cycle.' : 'Log a period to estimate this.'}')">
       <div class="stat-label">Ovulation date</div><div class="stat-value" style="font-size:1rem;">${prediction.ovulation ? todayKey(prediction.ovulation) : '—'}</div>
     </div>
-    <div class="stat-card" style="background:#4a3350;" onclick="showDetail('Pregnancy chance', '${chance.reason}${chanceExtra} This is an estimate from your logged data — not a test result, a diagnosis, or a guaranteed method of contraception.')">
-      <div class="stat-label">Pregnancy chance</div><div class="stat-value" style="font-size:1.1rem;">${chance.label}</div>
-    </div>
+    ${extraCards}
   `;
 
   tipEl.innerHTML = pickTip(phase, mode, recentSymptoms);
 }
+
+/* ---------------- Late period handling ----------------
+   The app never silently assumes a pregnancy. If a period is overdue, it only
+   surfaces a dismissible prompt so the person can decide for themselves —
+   either log the period that actually happened, or opt in to pregnancy tracking
+   (which then calculates everything from the last-period date they confirm). */
+function getLatePeriodInfo(){
+  if (periodsCache.length === 0) return null;
+  const prediction = estimateCycle();
+  if (!prediction.nextStart) return null;
+  const today = todayKey();
+  const predictedStart = todayKey(prediction.nextStart);
+  if (today <= predictedStart) return null;
+  // If any period has already been logged on/after the predicted start date, she's not late — clear it.
+  const alreadyLogged = periodsCache.some(p => p.start >= predictedStart);
+  if (alreadyLogged) return null;
+  const daysLate = daysBetween(predictedStart, today);
+  if (daysLate < 5) return null; // give normal cycle variation room before flagging anything
+  const lastPeriodStart = [...periodsCache].sort((a,b) => new Date(b.start) - new Date(a.start))[0].start;
+  return { daysLate, predictedStart, lastPeriodStart };
+}
+
+function renderLateBanner(mode){
+  const banner = document.getElementById('dashboard-late-banner');
+  if (!banner) return;
+  if (mode === 'pregnant') { banner.style.display = 'none'; return; }
+  const info = getLatePeriodInfo();
+  const dismissedToday = localStorage.getItem('femovia_late_dismiss_date') === todayKey();
+  if (!info || dismissedToday) { banner.style.display = 'none'; return; }
+  banner.dataset.lastPeriodStart = info.lastPeriodStart;
+  document.getElementById('late-banner-text').textContent =
+    `Based on your logged cycles, your period is about ${info.daysLate} day${info.daysLate === 1 ? '' : 's'} late. ` +
+    `This can happen for lots of reasons (stress, travel, illness, and more) — it isn't a diagnosis. ` +
+    `If you already had your period, just log it. If you think you might be pregnant, you can switch to pregnancy tracking below.`;
+  banner.style.display = 'block';
+}
+
+window.dismissLateBanner = function(){
+  localStorage.setItem('femovia_late_dismiss_date', todayKey());
+  document.getElementById('dashboard-late-banner').style.display = 'none';
+};
+
+window.openLatePregnancyForm = function(){
+  const banner = document.getElementById('dashboard-late-banner');
+  const lastStart = (banner && banner.dataset.lastPeriodStart) || '';
+  document.getElementById('late-preg-lmp').value = lastStart;
+  document.getElementById('late-preg-lmp').max = todayKey();
+  document.getElementById('late-preg-msg').style.display = 'none';
+  document.getElementById('late-preg-modal').style.display = 'flex';
+};
+
+window.closeLatePregnancyForm = function(){
+  document.getElementById('late-preg-modal').style.display = 'none';
+};
+
+window.confirmSwitchToPregnant = async function(){
+  const lmp = document.getElementById('late-preg-lmp').value;
+  const msgEl = document.getElementById('late-preg-msg');
+  if (!lmp) { msgEl.textContent = 'Please choose the first day of your last period.'; msgEl.style.display = 'block'; return; }
+  await db.collection('users').doc(currentUser.uid).set({
+    mode: 'pregnant', lmpDate: lmp, updatedAt: new Date().toISOString()
+  }, { merge: true });
+  profileCache = { ...profileCache, mode: 'pregnant', lmpDate: lmp };
+  localStorage.removeItem('femovia_late_dismiss_date');
+  document.getElementById('late-preg-modal').style.display = 'none';
+  selectMode('pregnant');
+  applyModeUI('pregnant');
+  document.getElementById('mode-value').textContent = 'Pregnant';
+  renderDashboard();
+};
 
 function cycleLenForCard(prediction){ return prediction.cycleLen || 28; }
 
@@ -1579,6 +1750,7 @@ window.loadLogForDate = async function(){
   document.getElementById('log-pgtest').value = data.pregnancyTest || '';
   document.getElementById('log-temp').value = data.basalTemp || '';
   document.getElementById('log-mucus').value = data.cervicalMucus || '';
+  document.getElementById('log-kicks').value = data.babyMovement || '';
   document.getElementById('log-weight').value = data.weightKg || '';
   document.getElementById('log-water').value = data.waterMl || '';
   document.getElementById('log-sleep').value = data.sleepHrs || '';
@@ -1599,6 +1771,7 @@ window.saveLog = async function(){
     pregnancyTest: document.getElementById('log-pgtest').value || null,
     basalTemp: parseFloat(document.getElementById('log-temp').value) || null,
     cervicalMucus: document.getElementById('log-mucus').value || null,
+    babyMovement: document.getElementById('log-kicks').value || null,
     weightKg: parseFloat(document.getElementById('log-weight').value) || null,
     waterMl: parseInt(document.getElementById('log-water').value) || null,
     sleepHrs: parseFloat(document.getElementById('log-sleep').value) || null,
@@ -1741,7 +1914,31 @@ function renderReport(from, to){
   reportChartInstances.forEach(c => c.destroy());
   reportChartInstances = [];
 
+  const mode = profileCache.mode || 'cycle';
   const sections = [];
+
+  if (mode === 'pregnant') {
+    // Pregnancy reports skip everything cycle/fertility/intercourse related and
+    // instead lead with pregnancy progress, then keep the wellbeing sections that still apply.
+    const info = computePregnancyInfo(profileCache.lmpDate);
+    if (info) {
+      sections.push(`<h3>Pregnancy overview</h3><div class="tip-card">You are <b>${info.weeksPregnant}w ${info.dayOfWeek}d</b> pregnant (${info.trimester.toLowerCase()} trimester), counted from your last period on ${info.lmp}. Estimated due date: <b>${info.dueDate}</b> (${info.daysToDue} days away). Baby is about the size of a <b>${info.babySize}</b>.</div>`);
+    } else {
+      sections.push(`<h3>Pregnancy overview</h3><div class="tip-card">Add the first day of your last period in Profile to see pregnancy tracking here.</div>`);
+    }
+    sections.push(`<h3>Mood analysis</h3><div class="mini-chart"><canvas id="rc-mood"></canvas></div>`);
+    sections.push(`<h3>Symptoms analysis</h3><div class="mini-chart"><canvas id="rc-symptoms"></canvas></div>`);
+    sections.push(`<h3>Weight trend</h3><div class="mini-chart"><canvas id="rc-weight"></canvas></div>`);
+    sections.push(`<h3>Sleep trend</h3><div class="mini-chart"><canvas id="rc-sleep"></canvas></div>`);
+    sections.push(`<h3>Health insights</h3><div class="tip-card">${buildHealthInsights(stats).join('<br><br>')}</div>`);
+    sections.push(`<p class="disclaimer">This report summarizes your logged data for personal reference. It is not a medical diagnosis — share it with your prenatal care provider if useful, but do not rely on it as clinical advice.</p>`);
+
+    document.getElementById('report-sections').innerHTML = sections.join('');
+    document.getElementById('report-analyzing').style.display = 'none';
+    document.getElementById('report-results').style.display = 'block';
+    renderReportCharts(stats, mode);
+    return;
+  }
 
   sections.push(`<h3>Cycle length trends</h3><div class="mini-chart"><canvas id="rc-cyclelen"></canvas></div>`);
   sections.push(`<h3>Period duration trends</h3><div class="mini-chart"><canvas id="rc-perioddur"></canvas></div>`);
@@ -1761,12 +1958,16 @@ function renderReport(from, to){
   sections.push(`<h3>Pain level analysis</h3><div class="mini-chart"><canvas id="rc-pain"></canvas></div>`);
   sections.push(`<h3>Flow analysis</h3><div class="mini-chart"><canvas id="rc-flow"></canvas></div>`);
 
-  sections.push(`<h3>Intercourse history</h3>` + reportListHTML(
-    Object.entries(stats.intercourseCounts).map(([type,count]) => `<div class="card" style="padding:12px 16px;">${type}: <b>${count}</b></div>`),
-    'No intercourse dates logged in this range.'
-  ));
-
-  sections.push(`<h3>Pregnancy chance summary</h3><div class="tip-card">${pregnancyChanceSummaryText()}</div>`);
+  // Intimacy and pregnancy-chance content is only relevant to modes actively
+  // managing pregnancy odds (trying to conceive / avoiding pregnancy) — plain
+  // cycle tracking leaves these out entirely.
+  if (mode === 'ttc' || mode === 'avoid') {
+    sections.push(`<h3>Intercourse history</h3>` + reportListHTML(
+      Object.entries(stats.intercourseCounts).map(([type,count]) => `<div class="card" style="padding:12px 16px;">${type}: <b>${count}</b></div>`),
+      'No intercourse dates logged in this range.'
+    ));
+    sections.push(`<h3>${mode === 'ttc' ? 'Conception chance summary' : 'Pregnancy chance summary'}</h3><div class="tip-card">${pregnancyChanceSummaryText()}</div>`);
+  }
 
   sections.push(`<h3>Basal body temperature</h3><div class="mini-chart"><canvas id="rc-bbt"></canvas></div>`);
   sections.push(`<h3>Weight trend</h3><div class="mini-chart"><canvas id="rc-weight"></canvas></div>`);
@@ -1781,7 +1982,10 @@ function renderReport(from, to){
   document.getElementById('report-sections').innerHTML = sections.join('');
   document.getElementById('report-analyzing').style.display = 'none';
   document.getElementById('report-results').style.display = 'block';
+  renderReportCharts(stats, mode);
+}
 
+function renderReportCharts(stats, mode){
   const chartBgPlugin = {
     id: 'chartBgPlugin',
     beforeDraw: (chart) => {
