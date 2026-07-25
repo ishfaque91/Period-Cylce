@@ -456,16 +456,6 @@
       <button class="btn-primary" onclick="saveProfile()">Save changes</button>
       <div class="msg" id="profile-msg" style="display:none;"></div>
 
-      <h3>Data</h3>
-      <button class="btn-outline" onclick="showImportBox()">Import data from old app</button>
-      <div id="import-box" style="display:none; margin-top:12px;">
-        <label for="import-json">Paste your exported JSON here</label>
-        <textarea id="import-json" placeholder='{"periods": [...], "logs": [...], "lmp": null}'></textarea>
-        <button class="btn-outline" onclick="handleImport()">Import</button>
-        <div class="msg" id="import-msg" style="display:none;"></div>
-      </div>
-      <button class="btn-outline" onclick="exportData()">Export my data (JSON)</button>
-
       <h3>Account</h3>
       <button class="btn-danger" onclick="handleDeleteAccount()">Delete account</button>
       <div class="msg error" id="account-msg" style="display:none;"></div>
@@ -1027,49 +1017,6 @@ window.saveProfile = async function(){
   const msgEl = document.getElementById('profile-msg');
   msgEl.textContent = 'Profile saved — returning to dashboard'; msgEl.style.display = 'block';
   setTimeout(() => { msgEl.style.display = 'none'; showTab('dashboard'); }, 900);
-};
-
-window.showImportBox = function(){ document.getElementById('import-box').style.display = 'block'; };
-
-window.handleImport = async function(){
-  const msgEl = document.getElementById('import-msg');
-  try {
-    const data = JSON.parse(document.getElementById('import-json').value);
-    const batch = db.batch();
-    let count = 0;
-    const periodsCol = db.collection('users').doc(currentUser.uid).collection('periods');
-    (data.periods || []).forEach(p => {
-      const ref = periodsCol.doc();
-      batch.set(ref, { start: p.start, end: p.end || null });
-      count++;
-    });
-    const logsCol = db.collection('users').doc(currentUser.uid).collection('logs');
-    (data.logs || []).forEach(l => {
-      const ref = logsCol.doc(l.date);
-      batch.set(ref, {
-        date: l.date, flow: l.flow || 'none', symptoms: l.symptoms || [],
-        basalTemp: l.temp || null, cervicalMucus: l.mucus || null, notes: l.notes || ''
-      }, { merge: true });
-      count++;
-    });
-    if (data.lmp) {
-      batch.set(db.collection('users').doc(currentUser.uid), { lmpDate: data.lmp, mode: 'pregnant' }, { merge: true });
-    }
-    await batch.commit();
-    msgEl.textContent = `Imported ${count} entries.`; msgEl.style.display = 'block';
-  } catch (e) {
-    msgEl.textContent = 'Could not import — check the pasted JSON is valid.'; msgEl.style.display = 'block';
-  }
-};
-
-window.exportData = async function(){
-  const data = { profile: profileCache, periods: periodsCache, logs: logsCache };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'femovia-export.json';
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
 };
 
 /* ---------------- Periods + Logs watchers ---------------- */
@@ -1835,12 +1782,35 @@ function renderReport(from, to){
   document.getElementById('report-analyzing').style.display = 'none';
   document.getElementById('report-results').style.display = 'block';
 
+  const chartBgPlugin = {
+    id: 'chartBgPlugin',
+    beforeDraw: (chart) => {
+      const { ctx, width, height } = chart;
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-over';
+      ctx.fillStyle = '#2E2138';
+      ctx.fillRect(0, 0, width, height);
+      ctx.restore();
+    }
+  };
+
   const mk = (id, type, labels, data, label, color) => {
     const el = document.getElementById(id);
-    if (!el || typeof Chart === 'undefined') return;
+    if (!el || typeof Chart === 'undefined' || !data.length) return;
     const chart = new Chart(el, {
       type, data: { labels, datasets: [{ label, data, backgroundColor: color, borderColor: color, tension: .3 }] },
-      options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color:'#B7A6C2' } }, y: { ticks: { color:'#B7A6C2' } } } }
+      options: {
+        responsive: true, animation: false, devicePixelRatio: 2,
+        plugins: {
+          legend: { display: false },
+          title: { display: true, text: label, color: '#F3EAF0', font: { size: 13, weight: '600' } }
+        },
+        scales: {
+          x: { ticks: { color:'#E4D9EA' }, grid: { color: 'rgba(255,255,255,.08)' } },
+          y: { ticks: { color:'#E4D9EA' }, grid: { color: 'rgba(255,255,255,.08)' } }
+        }
+      },
+      plugins: [chartBgPlugin]
     });
     reportChartInstances.push(chart);
   };
@@ -1850,10 +1820,23 @@ function renderReport(from, to){
   mk('rc-mood', 'bar', Object.keys(stats.moodCounts), Object.values(stats.moodCounts), 'Mood frequency', '#3FBFAE');
   mk('rc-symptoms', 'bar', Object.keys(stats.symptomCounts), Object.values(stats.symptomCounts), 'Symptom frequency', '#D8A94D');
   mk('rc-pain', 'line', stats.painSeries.map(p=>p.date.slice(5)), stats.painSeries.map(p=>p.value), 'Pain level', '#E8607A');
-  mk('rc-flow', 'bar', Object.keys(stats.flowCounts), Object.values(stats.flowCounts), 'Flow frequency', '#5A3444');
+  mk('rc-flow', 'bar', Object.keys(stats.flowCounts), Object.values(stats.flowCounts), 'Flow frequency', '#F0A0B4');
   mk('rc-bbt', 'line', stats.bbtSeries.map(p=>p.date.slice(5)), stats.bbtSeries.map(p=>p.value), 'Basal body temp (°C)', '#49A99C');
   mk('rc-weight', 'line', stats.weightSeries.map(p=>p.date.slice(5)), stats.weightSeries.map(p=>p.value), 'Weight (kg)', '#8B7FD6');
   mk('rc-sleep', 'line', stats.sleepSeries.map(p=>p.date.slice(5)), stats.sleepSeries.map(p=>p.value), 'Sleep (hrs)', '#D8A94D');
+
+  // Charts with no data in range get a plain "no data" note instead of a blank/empty canvas.
+  [
+    ['rc-cyclelen', stats.cycleLensF], ['rc-perioddur', stats.periodDurF],
+    ['rc-mood', Object.keys(stats.moodCounts)], ['rc-symptoms', Object.keys(stats.symptomCounts)],
+    ['rc-pain', stats.painSeries], ['rc-flow', Object.keys(stats.flowCounts)],
+    ['rc-bbt', stats.bbtSeries], ['rc-weight', stats.weightSeries], ['rc-sleep', stats.sleepSeries]
+  ].forEach(([id, arr]) => {
+    if (!arr.length) {
+      const el = document.getElementById(id);
+      if (el) el.closest('.mini-chart').innerHTML = '<p class="sub" style="margin:0;">No data in this range yet.</p>';
+    }
+  });
 }
 
 window.exportReportPDF = function(){
@@ -1878,20 +1861,43 @@ window.exportReportPDF = function(){
 
   document.querySelectorAll('#report-sections h3').forEach(h3 => {
     ensureSpace(60);
-    doc.setFontSize(13); doc.setFont(undefined, 'bold');
+    doc.setFontSize(13); doc.setFont(undefined, 'bold'); doc.setTextColor(20);
     doc.text(h3.textContent, margin, y); y += 16;
     doc.setFont(undefined, 'normal'); doc.setFontSize(10);
 
     const next = h3.nextElementSibling;
-    if (next && next.tagName === 'CANVAS') {
+    const canvas = next ? next.querySelector('canvas') : null;
+
+    if (canvas) {
       try {
-        const imgData = next.toDataURL('image/png', 1.0);
+        const imgData = canvas.toDataURL('image/png', 1.0);
         const imgWidth = pageWidth - margin*2;
-        const imgHeight = imgWidth * (next.height / next.width);
-        ensureSpace(imgHeight + 10);
+        const imgHeight = imgWidth * (canvas.height / canvas.width);
+        ensureSpace(imgHeight + 18);
         doc.addImage(imgData, 'PNG', margin, y, imgWidth, imgHeight);
-        y += imgHeight + 18;
-      } catch(e) { /* chart may be empty — skip silently */ }
+        y += imgHeight + 20;
+      } catch(e) {
+        doc.setTextColor(150);
+        doc.text('Chart unavailable.', margin, y); y += 18;
+        doc.setTextColor(20);
+      }
+    } else if (next && next.classList.contains('mini-chart')) {
+      // A "no data" placeholder replaced the canvas for this chart.
+      const text = next.textContent.trim() || 'No data in this range yet.';
+      ensureSpace(20);
+      doc.setTextColor(140);
+      doc.text(text, margin, y); y += 20;
+      doc.setTextColor(20);
+    } else if (next && next.querySelectorAll('.card').length) {
+      // List-style sections (Ovulation history, Fertility window history, Intercourse history).
+      next.querySelectorAll('.card').forEach(card => {
+        const text = card.textContent.trim().replace(/\s+/g, ' ');
+        const lines = doc.splitTextToSize('• ' + text, pageWidth - margin*2);
+        ensureSpace(lines.length * 12 + 4);
+        doc.text(lines, margin, y);
+        y += lines.length * 12 + 4;
+      });
+      y += 12;
     } else if (next) {
       const text = next.textContent.trim().replace(/\s+/g, ' ');
       const lines = doc.splitTextToSize(text || 'No data available.', pageWidth - margin*2);
